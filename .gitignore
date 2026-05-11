@@ -1,0 +1,25 @@
+
+node_modules
+yarn.lock
+dist
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Package lock files
+# package-lock.json
+pnpm-lock.yaml
+
+# Optional: OS files
+.DS_Store
+Thumbs.db
+
+# Optional: IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

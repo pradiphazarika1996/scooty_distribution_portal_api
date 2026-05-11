@@ -1,0 +1,12 @@
+ssh -i ~/Downloads/pms_prod_aws_key_c7g2xlarge_08_03_2026.pem ubuntu@35.154.50.188
+
+mysqldump -h test-mysql-aurora-db-cluster.cluster-cd00m60ok5mk.ap-south-1.rds.amazonaws.com \
+-u pms_db_user \
+-p \
+--single-transaction \
+--quick \
+--skip-lock-tables \
+--set-gtid-purged=OFF \
+--no-tablespaces \
+--ignore-table=provincialisation_prod_db.audit_logs \
+provincialisation_prod_db | gzip > pms_prod_backup_10-5-2026-11-34-pm.sql.gz
