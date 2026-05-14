@@ -1,5 +1,11 @@
-import { awsRedisClient } from '../services/AwsRedisService';
-import { OTP_REQUEST_LIMIT, OTP_TTL, OTP_VERIFY_LIMIT, OTP_WINDOW, RedisKey } from './redisKeys';
+import { awsRedisClient } from "../services/AwsRedisService";
+import {
+  OTP_REQUEST_LIMIT,
+  OTP_TTL,
+  OTP_VERIFY_LIMIT,
+  OTP_WINDOW,
+  RedisKey,
+} from "./redisKeys";
 
 export async function canRequestOtp(phone: string): Promise<boolean> {
   const key = RedisKey.otpLimit(phone);
@@ -10,7 +16,7 @@ export async function canRequestOtp(phone: string): Promise<boolean> {
     }
     return currentCount <= OTP_REQUEST_LIMIT;
   } catch (err) {
-    console.error('canRequestOtp error', err);
+    console.error("canRequestOtp error", err);
     return true;
   }
 }
@@ -20,21 +26,26 @@ export async function resetOtpLimit(phone: string) {
   try {
     await awsRedisClient.del(key);
   } catch (err) {
-    console.error('resetOtpLimit error', err);
+    console.error("resetOtpLimit error", err);
   }
 }
 
 export async function canVerifyOtp(phone: string): Promise<boolean> {
   const key = RedisKey.otpVerifyLimit(phone);
   try {
+    // const count = await awsRedisClient.incr(key);
+    // if (count === 1) {
+    //   await awsRedisClient.expire(key, OTP_WINDOW);
+    // }
+    // if (count === 1) await awsRedisClient.expire(key, OTP_TTL);
+    // return count <= OTP_VERIFY_LIMIT;
     const count = await awsRedisClient.incr(key);
     if (count === 1) {
       await awsRedisClient.expire(key, OTP_WINDOW);
     }
-    if (count === 1) await awsRedisClient.expire(key, OTP_TTL);
     return count <= OTP_VERIFY_LIMIT;
   } catch (err) {
-    console.error('canVerifyOtp error', err);
+    console.error("canVerifyOtp error", err);
     return true;
   }
 }
@@ -48,6 +59,6 @@ export async function resetOtpCode(phone: string) {
   try {
     await awsRedisClient.del(key);
   } catch (err) {
-    console.error('resetOtpLimit error', err);
+    console.error("resetOtpLimit error", err);
   }
 }

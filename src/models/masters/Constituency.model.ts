@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../config/sequelize";
-import Block from "./Block.model";
-import Cluster from "./Cluster.model";
+import Panchayat from "./Panchayat.model";
+import Village from "./Village.model";
 
 const Constituency = sequelize.define(
   "constituency",
@@ -15,10 +15,6 @@ const Constituency = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    // code: {
-    //   type: DataTypes.STRING,
-    //   allowNull: false,
-    // },
     district_id: {
       type: DataTypes.INTEGER,
     },
@@ -34,10 +30,10 @@ const Constituency = sequelize.define(
   },
 );
 
-Constituency.hasMany(Block, { foreignKey: "constituency_id" });
-Block.belongsTo(Constituency, { foreignKey: "constituency_id" });
+Constituency.hasMany(Panchayat, { foreignKey: "constituency_id" });
+Panchayat.belongsTo(Constituency, { foreignKey: "constituency_id" });
 
-Constituency.hasMany(Cluster, { foreignKey: "constituency_id" });
-Cluster.belongsTo(Constituency, { foreignKey: "constituency_id" });
+Constituency.hasMany(Village, { foreignKey: "constituency_id" });
+Village.belongsTo(Constituency, { foreignKey: "constituency_id" });
 
 export default Constituency;

@@ -1,32 +1,56 @@
 import Redis from "ioredis";
 import { RedisKey } from "../helpers/redisKeys";
 
-export const redisClient = new Redis("redis://localhost:6380", {
+const REDIS_URL = process.env.REDIS_URL || "";
+const REDIS_PORT = 6379;
+
+export const awsRedisClient = new Redis("redis://localhost:6379", {
   maxRetriesPerRequest: 3,
   enableReadyCheck: true,
   lazyConnect: true,
   reconnectOnError: () => true,
 });
 
-export async function setRedis(
+// export const awsRedisClient = new Redis.Cluster(
+//   [
+//     {
+//       host: REDIS_URL,
+//       port: REDIS_PORT,
+//     },
+//   ],
+//   {
+//     lazyConnect: true,
+//     scaleReads: 'all',
+//     redisOptions: {
+//       tls: {
+//         servername: REDIS_URL,
+//       },
+//       maxRetriesPerRequest: 3,
+//       enableReadyCheck: true,
+//       reconnectOnError: () => true,
+//     },
+//   }
+// );
+
+export async function setAwsRedis(
   key: string,
   data: any,
   ttl: number = 0,
 ): Promise<void> {
   try {
-    await redisClient.set(key, JSON.stringify(data));
+    await awsRedisClient.set(key, JSON.stringify(data));
 
     if (ttl > 0) {
-      await redisClient.expire(key, ttl);
+      await awsRedisClient.expire(key, ttl);
     }
   } catch (error: any) {
     console.error("setRedisScope error", error);
   }
 }
 
-export async function getRedis<T>(key: string): Promise<T | null> {
+export async function getAwsRedis<T>(key: string): Promise<T | null> {
   try {
-    const value = await redisClient.get(key);
+    const value = await awsRedisClient.get(key);
     return value ? JSON.parse(value) : null;
   } catch (error: any) {
     console.error("getRedis error", error);
@@ -36,7 +60,7 @@ export async function getRedis<T>(key: string): Promise<T | null> {
 
 export async function clearRedis(key: string): Promise<void> {
   try {
-    await redisClient.del(key);
+    await awsRedisClient.del(key);
   } catch (error: any) {
     console.error("clearSession error", error);
   }
@@ -44,12 +68,12 @@ export async function clearRedis(key: string): Promise<void> {
 
 export async function getApiCache<T>(name: string): Promise<T | null> {
   const key = RedisKey.apiCache(name);
-  return getRedis<T>(key);
+  return getAwsRedis<T>(key);
 }
 
 export async function setApiCache<T>(name: string, data: T): Promise<void> {
   const key = RedisKey.apiCache(name);
-  await setRedis(key, data);
+  await setAwsRedis(key, data);
 }
 
 export async function resetApiCache(name: string): Promise<void> {
