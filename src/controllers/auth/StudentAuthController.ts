@@ -1,23 +1,24 @@
-import { NextFunction, Request, Response } from 'express';
-import httpError from 'http-errors';
-import { ACCESS_TOKEN_COOKIE_VALIDITY } from '../../helpers/constants';
-import { REDIS_TTL } from '../../helpers/redisKeys';
-import { canRequestOtp } from '../../helpers/redisUtils';
-import { AccountStatus, ChannelType, UserType } from '../../helpers/status';
-import jwt from '../../middleware/jwt';
-import { default as Institution } from '../../models/Institution/Institution.model';
-import { getRedis, setRedis } from '../../services/RedisService';
-import { IInstitution } from '../../types/models';
-import { sendOtpMessage, verifyOtpCode } from './authService';
+import { NextFunction, Request, Response } from "express";
+import httpError from "http-errors";
+import { ACCESS_TOKEN_COOKIE_VALIDITY } from "../../helpers/constants";
+import { REDIS_TTL } from "../../helpers/redisKeys";
+import { canRequestOtp } from "../../helpers/redisUtils";
+import { AccountStatus, UserType } from "../../helpers/status";
+import jwt from "../../middleware/jwt";
+import Student from "../../models/student/Student.model";
+import { getRedis, setRedis } from "../../services/RedisService";
+import { sendOtpMessage, verifyOtpCode } from "./authService";
 
 const signAuthToken = jwt.signAuthToken;
 const verifyAuthToken = jwt.verifyAuthToken;
-const signAccessToken = jwt.signSchoolAccessToken;
-const signRefreshToken = jwt.signSchoolRefreshToken;
+const signAccessToken = jwt.signStudentAccessToken;
+const signRefreshToken = jwt.signStudentRefreshToken;
 
-export const getInstituteAccountKey = (instituteId: number | string): string => {
+export const getInstituteAccountKey = (
+  instituteId: number | string,
+): string => {
   if (!instituteId) {
-    throw new Error('Institute ID is required');
+    throw new Error("Institute ID is required");
   }
   return `institute:${instituteId}:account`;
 };
@@ -27,29 +28,34 @@ export default {
     try {
       const instituteId = req.payload.id;
       const cachedGetUser = await getRedis(getInstituteAccountKey(instituteId));
-      if (cachedGetUser) return res.status(200).send({ status: true, data: cachedGetUser });
-      const institution = await Institution.findOne({
-        attributes: ['id', 'name', 'email', 'phone_number', 'profile_status', 'application_id'],
+      if (cachedGetUser)
+        return res.status(200).send({ status: true, data: cachedGetUser });
+      const student = await Student.findOne({
+        attributes: [],
         where: { id: instituteId },
       }).catch((err) => {
-        console.error('getUser institution fetch error:', err);
+        console.error("getUser student fetch error:", err);
         throw httpError.InternalServerError();
       });
 
-      if (!institution) throw httpError.NotFound();
-      const institutionData = institution.toJSON() as any;
+      if (!student) throw httpError.NotFound();
+      const studentData = student.toJSON() as any;
 
       const data = {
-        ...institutionData,
-        role: UserType.INSTITUTION,
+        ...studentData,
+        role: UserType.STUDENT,
       };
-      await setRedis(getInstituteAccountKey(instituteId), data, REDIS_TTL.USER_LIMIT);
+      await setRedis(
+        getInstituteAccountKey(instituteId),
+        data,
+        REDIS_TTL.USER_LIMIT,
+      );
       res.status(200).send({
         status: true,
         data,
       });
     } catch (error: any) {
-      console.error('getUser institute error:', error);
+      console.error("getUser institute error:", error);
       res.status(error.status || 500).send({
         status: false,
         message: error.message,
@@ -58,20 +64,27 @@ export default {
   },
   registerSendOtp: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const payload = req.body as IInstitution;
+      const payload = req.body;
 
-      if (!payload.phone_number) throw httpError.BadRequest('Phone is required');
+      if (!payload.phone_number)
+        throw httpError.BadRequest("Phone is required");
 
       const canRequest = await canRequestOtp(payload.phone_number);
-      if (!canRequest) throw httpError.TooManyRequests('Maximum OTP sending attempts reached');
+      if (!canRequest)
+        throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
 
-      const existing: any = await Institution.findOne({
+      const existing: any = await Student.findOne({
         where: { phone_number: payload.phone_number },
       });
 
-      if (existing) throw httpError.Forbidden('This number is already been registered');
+      if (existing)
+        throw httpError.Forbidden("This number is already been registered");
 
-      const verification: any = await sendOtpMessage(payload.phone_number, payload.otpChannelId as number, UserType.INSTITUTION);
+      const verification: any = await sendOtpMessage(
+        payload.phone_number,
+        payload.otpChannelId as number,
+        UserType.STUDENT,
+      );
 
       if (!verification) throw httpError.InternalServerError();
       const token = await signAuthToken({
@@ -81,14 +94,18 @@ export default {
 
       res.status(200).send({ status: true, data: { token } });
     } catch (error: any) {
-      console.log('error', error);
+      console.log("error", error);
       res.status(error.status || 500).send({
         status: false,
-        message: error.message ?? 'Something went wrong',
+        message: error.message ?? "Something went wrong",
       });
     }
   },
-  registerVerifyOtp: async (req: Request, res: Response, next: NextFunction) => {
+  registerVerifyOtp: async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
     try {
       const { token, otp } = req.body;
       if (!token || !otp) throw httpError.BadRequest();
@@ -99,40 +116,40 @@ export default {
       const phone = instituteData.phone_number;
       await verifyOtpCode(phone, otp);
 
-      const institute: any = await Institution.create({
+      const student: any = await Student.create({
         ...instituteData,
         account_status: AccountStatus.ACTIVE,
         is_phone_verified: true,
       }).catch((error) => {
-        if (error.name === 'SequelizeUniqueConstraintError') {
-          const field = error.errors?.[0]?.path ?? 'field';
-          const fieldName = field.replace('institutions_', '');
+        if (error.name === "SequelizeUniqueConstraintError") {
+          const field = error.errors?.[0]?.path ?? "field";
+          const fieldName = field.replace("students_", "");
           throw httpError.Conflict(`This ${fieldName} is already registered`);
         }
         throw httpError.InternalServerError(error);
       });
 
-      const accessToken = await signAccessToken(institute.id);
+      const accessToken = await signAccessToken(student.id);
 
-      res.cookie('access_token', accessToken, {
+      res.cookie("access_token", accessToken, {
         httpOnly: true,
         secure: true,
-        domain: '.pmsportal.org',
-        sameSite: 'none',
+        domain: ".pmsportal.org",
+        sameSite: "none",
         maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
       });
 
       res.status(200).send({
         status: true,
         data: {
-          name: institute.name,
-          phone: institute.phone_number,
-          role: UserType.INSTITUTION,
+          name: student.name,
+          phone: student.phone_number,
+          role: UserType.STUDENT,
         },
       });
     } catch (error: any) {
       const status = error.status ?? 500;
-      const message = error.message ?? 'Something went wrong';
+      const message = error.message ?? "Something went wrong";
       res.status(status).send({ status: false, message });
     }
   },
@@ -140,31 +157,41 @@ export default {
     try {
       const { phone, otpChannelId } = req.body;
 
-      if (!phone) throw httpError.BadRequest('Phone number is required');
+      if (!phone) throw httpError.BadRequest("Phone number is required");
       const canRequest = await canRequestOtp(phone);
-      if (!canRequest) throw httpError.TooManyRequests('Maximum OTP sending attempts reached');
+      if (!canRequest)
+        throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
 
-      const existing: any = await Institution.findOne({
+      const existing: any = await Student.findOne({
         where: { phone_number: phone },
       });
 
-      if (!existing || !existing.is_phone_verified || existing.account_status !== AccountStatus.ACTIVE) throw httpError.Unauthorized();
+      if (
+        !existing ||
+        !existing.is_phone_verified ||
+        existing.account_status !== AccountStatus.ACTIVE
+      )
+        throw httpError.Unauthorized();
 
-      const verification: any = await sendOtpMessage(phone, otpChannelId, UserType.INSTITUTION);
+      const verification: any = await sendOtpMessage(
+        phone,
+        otpChannelId,
+        UserType.STUDENT,
+      );
       if (!verification) throw httpError.InternalServerError();
 
       const token = await signAuthToken({
         phone,
         otp_id: verification.id,
-        inst_id: existing.id,
+        student_id: existing.id,
       });
 
       res.status(200).send({ status: true, data: { token } });
     } catch (error: any) {
-      console.error('loginSendOtp', error);
+      console.error("loginSendOtp", error);
       res.status(error.status || 500).send({
         status: false,
-        message: error.message ?? 'Something went wrong',
+        message: error.message ?? "Something went wrong",
       });
     }
   },
@@ -179,17 +206,19 @@ export default {
 
       await verifyOtpCode(phone, otp);
 
-      const institute: any = await Institution.findByPk(institute_id).catch((error) => {
-        throw httpError.InternalServerError();
-      });
+      const student: any = await Student.findByPk(userData.student_id).catch(
+        (error) => {
+          throw httpError.InternalServerError();
+        },
+      );
 
-      const accessToken = await signAccessToken(institute.id);
-      // const refreshToken = await signRefreshToken(institute.id);
-      res.cookie('access_token', accessToken, {
+      const accessToken = await signAccessToken(student.id);
+      // const refreshToken = await signRefreshToken(student.id);
+      res.cookie("access_token", accessToken, {
         httpOnly: true,
         secure: true,
-        domain: '',
-        sameSite: 'none',
+        domain: "",
+        sameSite: "none",
         maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
       });
 
@@ -203,23 +232,23 @@ export default {
       res.status(200).send({
         status: true,
         data: {
-          name: institute.name,
-          phone: institute.phone_number,
-          role: UserType.INSTITUTION,
+          name: student.name,
+          phone: student.phone_number,
+          role: UserType.STUDENT,
         },
       });
     } catch (error: any) {
-      console.error('loginVerifyOtp', error);
+      console.error("loginVerifyOtp", error);
       res.status(error.status || 500).send({
         status: false,
-        message: error.message ?? 'Something went wrong',
+        message: error.message ?? "Something went wrong",
       });
     }
   },
   logout: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      res.clearCookie('token');
-      res.clearCookie('access_token', { domain: '.pmsportal.org' });
+      res.clearCookie("token");
+      res.clearCookie("access_token", { domain: ".pmsportal.org" });
       // res.clearCookie("access_token");
       res.status(200).send({ status: true });
     } catch (err) {

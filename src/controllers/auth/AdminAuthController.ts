@@ -1,12 +1,12 @@
-import { NextFunction, Request, Response } from 'express';
-import httpError from 'http-errors';
-import { Sequelize } from 'sequelize';
-import { ACCESS_TOKEN_COOKIE_VALIDITY } from '../../helpers/constants';
-import { canRequestOtp, canVerifyOtp } from '../../helpers/redisUtils';
-import { AccountStatus, ChannelType, UserType } from '../../helpers/status';
-import jwt from '../../middleware/jwt';
-import { getRedis, setRedis } from '../../services/RedisService';
-import { sendOtpMessage, verifyOtpCode } from './authService';
+import { NextFunction, Request, Response } from "express";
+import httpError from "http-errors";
+import { ACCESS_TOKEN_COOKIE_VALIDITY } from "../../helpers/constants";
+import { canRequestOtp, canVerifyOtp } from "../../helpers/redisUtils";
+import { AccountStatus, UserType } from "../../helpers/status";
+import jwt from "../../middleware/jwt";
+import User from "../../models/User.model";
+import { getRedis, setRedis } from "../../services/RedisService";
+import { sendOtpMessage, verifyOtpCode } from "./authService";
 
 const signAuthToken = jwt.signAuthToken;
 const verifyAuthToken = jwt.verifyAuthToken;
@@ -15,7 +15,7 @@ const signRefreshToken = jwt.signAdminRefreshToken;
 
 export const getAdminAccountKey = (employeeId: number | string): string => {
   if (!employeeId) {
-    throw new Error('User ID is required');
+    throw new Error("User ID is required");
   }
   return `user:${employeeId}:account`;
 };
@@ -25,30 +25,21 @@ export default {
     try {
       const employeeId = req.payload.id;
       const cachedGetUser = await getRedis(getAdminAccountKey(employeeId));
-      if (cachedGetUser) return res.status(200).send({ status: true, data: cachedGetUser });
-      const employee: any = await Employee.findOne({
+      if (cachedGetUser)
+        return res.status(200).send({ status: true, data: cachedGetUser });
+      const employee: any = await User.findOne({
         where: { id: employeeId },
-        attributes: ['id', 'name', 'phone_number', 'date_of_birth', 'email'],
-        include: [
-          {
-            model: Institution,
-            as: 'employee_institution',
-            attributes: ['name'],
-          },
-          {
-            model: Designation,
-            attributes: ['name'],
-          },
-        ],
+        attributes: ["id", "name", "phone_number", "date_of_birth", "email"],
+        include: [],
       }).catch((error) => {
-        console.log('getUser Employee error:', error);
+        console.log("getUser Employee error:", error);
         throw httpError.InternalServerError(error);
       });
       if (!employee) throw httpError.NotFound();
       const data = {
         name: employee.name,
         phone: employee.phone_number,
-        role: UserType.EMPLOYEE,
+        role: UserType.ADMIN,
         date_of_birth: employee.date_of_birth,
         email: employee.email,
         is_phone_verified: employee.is_phone_verified,
@@ -66,18 +57,28 @@ export default {
   loginSendOtp: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { phone, otpChannelId } = req.body;
-      console.log('Login OTP request for phone:', phone);
-      if (!phone) throw httpError.BadRequest('Phone is required');
+      console.log("Login OTP request for phone:", phone);
+      if (!phone) throw httpError.BadRequest("Phone is required");
 
       const canRequest = await canRequestOtp(phone);
-      if (!canRequest) throw httpError.TooManyRequests('Maximum OTP sending attempts reached');
+      if (!canRequest)
+        throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
 
-      const existing: any = await Employee.findOne({
+      const existing: any = await User.findOne({
         where: { phone_number: phone },
       });
 
-      if (!existing || !existing.is_phone_verified || existing.account_status !== AccountStatus.ACTIVE) throw httpError.Unauthorized();
-      const verification: any = await sendOtpMessage(phone, otpChannelId, UserType.EMPLOYEE);
+      if (
+        !existing ||
+        !existing.is_phone_verified ||
+        existing.account_status !== AccountStatus.ACTIVE
+      )
+        throw httpError.Unauthorized();
+      const verification: any = await sendOtpMessage(
+        phone,
+        otpChannelId,
+        UserType.ADMIN,
+      );
       if (!verification) throw httpError.InternalServerError();
       const token = await signAuthToken({
         phone,
@@ -86,7 +87,9 @@ export default {
       });
       res.status(200).send({ status: true, data: { token } });
     } catch (err: any) {
-      res.status(err.status || 500).send({ status: false, message: err.message });
+      res
+        .status(err.status || 500)
+        .send({ status: false, message: err.message });
     }
   },
   loginVerifyOtp: async (req: Request, res: Response, next: NextFunction) => {
@@ -99,20 +102,23 @@ export default {
       const phone = userData.phone;
 
       const canAttempt = await canVerifyOtp(phone);
-      if (!canAttempt) throw httpError.TooManyRequests('Maximum OTP verification attempts reached');
+      if (!canAttempt)
+        throw httpError.TooManyRequests(
+          "Maximum OTP verification attempts reached",
+        );
 
       await verifyOtpCode(phone, otp);
-      const employee: any = await Employee.findByPk(employee_id).catch((error) => {
+      const employee: any = await User.findByPk(employee_id).catch((error) => {
         throw httpError.InternalServerError();
       });
 
       const accessToken = await signAccessToken(employee.id);
       // const refreshToken = await signRefreshToken(employee.id);
-      res.cookie('access_token', accessToken, {
+      res.cookie("access_token", accessToken, {
         httpOnly: true,
         secure: true,
-        sameSite: 'none',
-        domain: '',
+        sameSite: "none",
+        domain: "",
         maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
       });
 
@@ -135,13 +141,16 @@ export default {
     } catch (error: any) {
       res.status(error.status || 500).send({
         status: false,
-        message: error.message ?? 'Something went wrong',
+        message: error.message ?? "Something went wrong",
       });
     }
   },
   logout: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      res.clearCookie('access_token', { domain: '' }).status(200).send({ status: true });
+      res
+        .clearCookie("access_token", { domain: "" })
+        .status(200)
+        .send({ status: true });
     } catch (err) {
       res.status(500).send({ status: false });
     }
