@@ -12,5 +12,8 @@ const verifyStudentAccessToken = jwt.verifyStudentAccessToken;
 router.use("/auth", authRoutes);
 router.use("/admin", verifyAdminAccessToken, adminRoutes);
 router.use("/student", verifyStudentAccessToken, studentRoutes);
+router.use("/auth", authRoutes);
+router.use("/admin", verifyAdminAccessToken, adminRoutes);
+router.use("/student", verifyStudentAccessToken, studentRoutes);
 
 export default router;

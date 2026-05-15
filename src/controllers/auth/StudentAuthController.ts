@@ -5,8 +5,10 @@ import { REDIS_TTL } from "../../helpers/redisKeys";
 import { canRequestOtp } from "../../helpers/redisUtils";
 import { AccountStatus, UserType } from "../../helpers/status";
 import jwt from "../../middleware/jwt";
-import Student from "../../models/student/Student.model";
+import Student from "../../models/Student.model";
 import { getRedis, setRedis } from "../../services/RedisService";
+import { IStudentResponse } from "../../types/models";
+
 import { sendOtpMessage, verifyOtpCode } from "./authService";
 
 const signAuthToken = jwt.signAuthToken;
@@ -30,19 +32,26 @@ export default {
       const cachedGetUser = await getRedis(getInstituteAccountKey(instituteId));
       if (cachedGetUser)
         return res.status(200).send({ status: true, data: cachedGetUser });
-      const student = await Student.findOne({
-        attributes: [],
+      const students = await Student.findOne({
+        attributes: [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "profile_status",
+          "application_id",
+        ],
         where: { id: instituteId },
       }).catch((err) => {
-        console.error("getUser student fetch error:", err);
+        console.error("getUser institution fetch error:", err);
         throw httpError.InternalServerError();
       });
 
-      if (!student) throw httpError.NotFound();
-      const studentData = student.toJSON() as any;
+      if (!students) throw httpError.NotFound();
+      const studentsData = students.toJSON() as any;
 
       const data = {
-        ...studentData,
+        ...studentsData,
         role: UserType.STUDENT,
       };
       await setRedis(
@@ -64,25 +73,24 @@ export default {
   },
   registerSendOtp: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const payload = req.body;
+      const payload = req.body as IStudentResponse;
 
-      if (!payload.phone_number)
-        throw httpError.BadRequest("Phone is required");
+      if (!payload.phone) throw httpError.BadRequest("Phone is required");
 
-      const canRequest = await canRequestOtp(payload.phone_number);
+      const canRequest = await canRequestOtp(payload.phone);
       if (!canRequest)
         throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
 
       const existing: any = await Student.findOne({
-        where: { phone_number: payload.phone_number },
+        where: { phone_number: payload.phone },
       });
 
       if (existing)
         throw httpError.Forbidden("This number is already been registered");
 
       const verification: any = await sendOtpMessage(
-        payload.phone_number,
-        payload.otpChannelId as number,
+        payload.phone,
+        payload.otpChanelId as number,
         UserType.STUDENT,
       );
 
@@ -143,7 +151,7 @@ export default {
         status: true,
         data: {
           name: student.name,
-          phone: student.phone_number,
+          phone: student.phone,
           role: UserType.STUDENT,
         },
       });
@@ -163,7 +171,7 @@ export default {
         throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
 
       const existing: any = await Student.findOne({
-        where: { phone_number: phone },
+        where: { phone: phone },
       });
 
       if (
@@ -206,7 +214,7 @@ export default {
 
       await verifyOtpCode(phone, otp);
 
-      const student: any = await Student.findByPk(userData.student_id).catch(
+      const student: any = await Student.findByPk(institute_id).catch(
         (error) => {
           throw httpError.InternalServerError();
         },
@@ -214,26 +222,26 @@ export default {
 
       const accessToken = await signAccessToken(student.id);
       // const refreshToken = await signRefreshToken(student.id);
-      res.cookie("access_token", accessToken, {
-        httpOnly: true,
-        secure: true,
-        domain: "",
-        sameSite: "none",
-        maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
-      });
-
       // res.cookie("access_token", accessToken, {
       //   httpOnly: true,
-      //   secure: false,
-      //   sameSite: "lax",
+      //   secure: true,
+      //   domain: "",
+      //   sameSite: "none",
       //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
       // });
+
+      res.cookie("access_token", accessToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
+      });
 
       res.status(200).send({
         status: true,
         data: {
           name: student.name,
-          phone: student.phone_number,
+          phone: student.phone,
           role: UserType.STUDENT,
         },
       });
