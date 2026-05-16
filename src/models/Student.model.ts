@@ -12,22 +12,22 @@ const Student = sequelize.define(
 
     name: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
 
     email: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
 
     phone: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
 
     password: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
 
     role: {
