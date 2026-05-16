@@ -25,11 +25,11 @@ const Contact = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
-    status: {
-      type: DataTypes.ENUM("pending", "reviewed", "resolved"),
-      allowNull: false,
-      defaultValue: "pending",
-    },
+  status: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  defaultValue: 1,
+},
   },
   {
     timestamps: true,
