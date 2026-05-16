@@ -1,8 +1,8 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../config/sequelize";
 
-const Cluster = sequelize.define(
-  "cluster",
+const Village = sequelize.define(
+  "village",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -13,16 +13,13 @@ const Cluster = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    // code: {
-    //   type: DataTypes.STRING,
-    // },
     district_id: {
       type: DataTypes.INTEGER,
     },
     constituency_id: {
       type: DataTypes.INTEGER,
     },
-    block_id: {
+    panchayat_id: {
       type: DataTypes.INTEGER,
     },
     is_active: {
@@ -33,12 +30,8 @@ const Cluster = sequelize.define(
   {
     timestamps: true,
     underscored: true,
-    indexes: [
-      // { fields: ["code"], unique: true },
-      { fields: ["block_id"] },
-      { fields: ["district_id"] },
-    ],
+    indexes: [{ fields: ["panchayat_id"] }],
   },
 );
 
-export default Cluster;
+export default Village;

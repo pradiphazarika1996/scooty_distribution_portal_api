@@ -1,15 +1,15 @@
 import express from 'express';
-import InstitutionAuthController from '../../controllers/auth/StudentAuthController';
+import StudentAuthController from '../../controllers/auth/StudentAuthController';
 import jwt from '../../middleware/jwt';
 
-const verifyAccessToken = jwt.verifyInstituteAccessToken;
+const verifyAccessToken = jwt.verifyStudentAccessToken;
 const router = express.Router();
 
-router.post('/login/send-otp', InstitutionAuthController.loginSendOtp);
-router.post('/login/verify-otp', InstitutionAuthController.loginVerifyOtp);
-router.post('/register/send-otp', InstitutionAuthController.registerSendOtp);
-router.post('/register/verify-otp', InstitutionAuthController.registerVerifyOtp);
-router.get('/account', verifyAccessToken, InstitutionAuthController.getUser);
-router.post('/logout', verifyAccessToken, InstitutionAuthController.logout);
+router.post('/login/send-otp', StudentAuthController.loginSendOtp);
+router.post('/login/verify-otp', StudentAuthController.loginVerifyOtp);
+router.post('/register/send-otp', StudentAuthController.registerSendOtp);
+router.post('/register/verify-otp', StudentAuthController.registerVerifyOtp);
+router.get('/account', verifyAccessToken, StudentAuthController.getUser);
+router.post('/logout', verifyAccessToken, StudentAuthController.logout);
 
 export default router;

@@ -1,13 +1,15 @@
 import { NextFunction, Request, Response } from "express";
 import httpError from "http-errors";
+import { Sequelize } from "sequelize";
+import Panchayat from "../../../models/masters/Panchayat.model";
 import Constituency from "../../../models/masters/Constituency.model";
 import District from "../../../models/masters/District.model";
-import { Sequelize } from "sequelize";
 
 export default {
-  addConstituency: async (req: Request, res: Response, next: NextFunction) => {
+  // creates new panchayat
+  addPanchayat: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await Constituency.create(req.body).catch((err) => {
+      const data = await Panchayat.create(req.body).catch((err) => {
         throw httpError.InternalServerError(err);
       });
       if (!data) throw httpError.InternalServerError();
@@ -16,7 +18,7 @@ export default {
         status: true,
       });
     } catch (err: any) {
-      console.log("add constituency error ", err);
+      console.log("add panchayat error ", err);
       res.status(err.status || 500).send({
         status: false,
         message: err.message,
@@ -24,15 +26,12 @@ export default {
     }
   },
 
-  updateConstituency: async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  // update existing panchayat
+  updatePanchayat: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const constituencyId = req.params.id;
-      const [updatedRows] = await Constituency.update(req.body, {
-        where: { id: constituencyId },
+      const panchayatId = req.params.id;
+      const [updatedRows] = await Panchayat.update(req.body, {
+        where: { id: panchayatId },
       }).catch((err) => {
         throw httpError.InternalServerError();
       });
@@ -47,15 +46,12 @@ export default {
     }
   },
 
-  deleteConstituency: async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  // delete panchayat
+  deletePanchayat: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const constituencyId = req.params.id;
-      const data = await Constituency.destroy({
-        where: { id: constituencyId },
+      const panchayatId = req.params.id;
+      const data = await Panchayat.destroy({
+        where: { id: panchayatId },
       }).catch((err) => {
         throw httpError.InternalServerError();
       });
@@ -70,12 +66,13 @@ export default {
     }
   },
 
-  getConstituency: async (req: Request, res: Response, next: NextFunction) => {
+  // fetches single panchayat
+  getPanchayat: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const constituencyId = req.params.id;
-      let data = await Constituency.findOne({
-        where: { id: constituencyId },
-        attributes: ["id", "name", "code"],
+      const panchayatId = req.params.id;
+      let data = await Panchayat.findOne({
+        where: { id: panchayatId },
+        attributes: ["id", "name", "constituency_id", "district_id"],
       }).catch((err) => {
         throw httpError.InternalServerError();
       });
@@ -88,36 +85,43 @@ export default {
     }
   },
 
-  getConstituencies: async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  // returns the list of all panchayats
+  getPanchayats: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { district_id } = req.query;
-
-      const constituencies = await Constituency.findAll({
+      const { constituency_id } = req.query;
+      console.log("query params", req.query);
+      const panchayats = await Panchayat.findAll({
         attributes: [
           "id",
-          "name",
           // "code",
+          "name",
           "district_id",
+          "constituency_id",
           [Sequelize.literal("District.name"), "district_name"],
+          [Sequelize.literal("Constituency.name"), "constituency_name"],
         ],
         include: [
           {
             model: District,
             attributes: [],
           },
+          {
+            model: Constituency,
+            attributes: [],
+          },
         ],
-
-        where: district_id ? { district_id } : {},
+        where: {
+          // ...(district_id && { district_id }),
+          ...(constituency_id && { constituency_id }),
+        },
         order: [["id", "DESC"]],
       }).catch((err) => {
+        console.log("error in fetching panchayats", err);
         throw httpError.InternalServerError();
       });
+      console.log("panchayats", panchayats);
 
-      res.status(200).send({ status: true, data: constituencies });
+      res.status(200).send({ status: true, data: panchayats });
     } catch (err: any) {
       res.status(err.status || 500).send({ status: false });
     }

@@ -38,7 +38,7 @@ export const sendOtpMessage = async (
 ) => {
   try {
     const otp_code = generateOtp();
-    const expiresInSeconds = 5 * 60;
+    const expiresInSeconds = 10 * 60;
 
     const otpData = {
       otp_code,

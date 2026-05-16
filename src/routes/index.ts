@@ -9,9 +9,9 @@ const router = express.Router();
 // const verifyAdminAccessToken = jwt.verifyAdminAccessToken;
 // const verifyStudentAccessToken = jwt.verifyStudentAccessToken;
 
-// router.use('/auth', authRoutes);
-// router.use('/admin', verifyAdminAccessToken, adminRoutes);
-// router.use('/student', verifyStudentAccessToken, studentRoutes);
+// router.use("/auth", authRoutes);
+// router.use("/admin", verifyAdminAccessToken, adminRoutes);
+// router.use("/student", verifyStudentAccessToken, studentRoutes);
 router.use('/landing/contact',contactRoutes)
 
 export default router;
