@@ -21,3 +21,9 @@ export const FileType = Object.freeze({
   IMAGE: 1,
   PDF: 2,
 });
+
+export const CONTACT_STATUS = Object.freeze({
+  PENDING: 1,
+  REVIEWED: 2,
+  RESOLVED: 3,
+});
