@@ -12,10 +12,7 @@ import {
   uploadDocument,
 } from "../../controllers/student/DocumentController";
 import { downloadApplicationPdf } from "../../controllers/student/PdfController";
-import jwt from "../../middleware/jwt";
 import { singleUpload } from "../../middleware/uploadFile";
-
-const verifyAccessToken = jwt.signStudentAccessToken;
 
 const router = Router();
 

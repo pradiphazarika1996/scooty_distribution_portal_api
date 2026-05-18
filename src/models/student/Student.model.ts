@@ -32,6 +32,9 @@ const Student = sequelize.define(
     name: {
       type: DataTypes.STRING,
     },
+    avatar_url: {
+      type: DataTypes.STRING,
+    },
     guardian_name: {
       type: DataTypes.STRING,
     },
