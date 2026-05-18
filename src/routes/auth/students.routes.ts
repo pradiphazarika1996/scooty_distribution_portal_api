@@ -7,9 +7,9 @@ const router = express.Router();
 
 router.post("/login/send-otp", StudentAuthController.loginSendOtp);
 router.post("/login/verify-otp", StudentAuthController.loginVerifyOtp);
-router.post("/register/send-otp", StudentAuthController.registerUser);
+router.post("/register/send-otp", StudentAuthController.registerSendOtp);
 router.post("/register/verify-otp", StudentAuthController.registerVerifyOtp);
-// router.get('/account', verifyAccessToken, StudentAuthController.getUser);
+router.get("/account", verifyAccessToken, StudentAuthController.getStudent);
 router.post("/logout", verifyAccessToken, StudentAuthController.logout);
 
 export default router;

@@ -1,10 +1,15 @@
 export interface IUser {
-  name: string;
   phone: string;
-  role: number;
-  otpChannelId?: number;
-  is_active: boolean;
-  status: number;
+  otpChannelId: number;
+  name?: string;
+  role?: number;
+  is_active?: boolean;
+  status?: number;
+}
+
+export interface IStudent {
+  phone: string;
+  otpChannelId: number;
 }
 
 export interface IStudentResponse {
