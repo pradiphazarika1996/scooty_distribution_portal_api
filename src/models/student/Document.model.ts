@@ -20,10 +20,10 @@ const Document = sequelize.define(
       allowNull: false,
     },
     doc_type: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       comment:
-        "govt_id, marksheet, age_proof, address_proof, school_pass_certificate, bank_pass_book, caste_certificate, bank_account_details",
+        "1: govt_id, 2: marksheet, 3: age_proof, 4: address_proof, 5: school_pass_certificate, 6: bank_pass_book, 7: caste_certificate, 8: bank_account_details",
     },
     file_name: {
       type: DataTypes.STRING,

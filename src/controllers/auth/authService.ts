@@ -39,6 +39,9 @@ export const sendOtpMessage = async (
   try {
     const otp_code = generateOtp();
     const expiresInSeconds = 10 * 60;
+    console.log(
+      `Generated OTP for ${phone_number}: ${otp_code} (expires in ${expiresInSeconds} seconds)`,
+    );
 
     const otpData = {
       otp_code,

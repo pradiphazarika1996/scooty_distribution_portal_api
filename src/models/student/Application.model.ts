@@ -1,7 +1,27 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../config/sequelize";
-import { APPLICATION_STATUS, PAYMENT_STATUS } from "../../helpers/application";
 import Student from "./Student.model";
+
+export const APPLICATION_STATUS = Object.freeze({
+  DRAFT: 1,
+  SUBMITTED: 2,
+  PAYMENT_COMPLETED: 3,
+  UNDER_REVIEW: 4,
+  QUERY_RAISED: 5,
+  APPROVED: 6,
+  REJECTED: 7,
+});
+
+export const PAYMENT_STATUS = Object.freeze({
+  PENDING: 1,
+  COMPLETED: 2,
+  FAILED: 3,
+});
+
+export const MARKING_SYSTEM = Object.freeze({
+  PERCENTAGE: 1,
+  CGPA: 2,
+});
 
 const Application = sequelize.define(
   "Application",
@@ -41,8 +61,16 @@ const Application = sequelize.define(
     roll_no: {
       type: DataTypes.STRING,
     },
+    marking_system: {
+      type: DataTypes.INTEGER,
+      defaultValue: MARKING_SYSTEM.PERCENTAGE,
+      comment: "1=Percentage, 2=CGPA",
+    },
     percentage_of_marks: {
       type: DataTypes.DECIMAL(5, 2),
+    },
+    cgpa: {
+      type: DataTypes.DECIMAL(4, 2),
     },
     institution_name: {
       type: DataTypes.STRING,
@@ -52,14 +80,15 @@ const Application = sequelize.define(
     },
 
     // ── Bank Details (per-application, may differ) ──
-    bank_name: {
-      type: DataTypes.STRING,
+    bank_id: {
+      type: DataTypes.INTEGER,
     },
     branch_name: {
       type: DataTypes.STRING,
     },
     account_no: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(18),
+      comment: "9-18 digits depending on bank",
     },
     ifsc_code: {
       type: DataTypes.STRING(11),
@@ -78,7 +107,7 @@ const Application = sequelize.define(
       allowNull: false,
       defaultValue: APPLICATION_STATUS.DRAFT,
       comment:
-        "0=Draft, 1=Submitted, 3=Payment Pending, 4=Under Review, 5=Approved, 6=Rejected",
+        "1=Draft, 2=Submitted, 3=Payment Pending, 4=Under Review, 5=Approved, 6=Rejected",
     },
     submitted_at: {
       type: DataTypes.DATE,

@@ -1,6 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../config/sequelize";
-import { PROFILE_STATUS } from "../../helpers/status";
+import { PROFILE_STATUS } from "../../helpers/students/student";
 
 const Student = sequelize.define(
   "Student",
@@ -47,34 +47,35 @@ const Student = sequelize.define(
     aadhaar_number: {
       type: DataTypes.STRING(12),
     },
-    mac_constituency_name_id: {
-      type: DataTypes.INTEGER,
-    },
-    mac_constituency_no_id: {
-      type: DataTypes.INTEGER,
-    },
 
     // ── Address ──
-    state: {
-      type: DataTypes.INTEGER,
+    is_outside_mac_area: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
-    district: {
-      type: DataTypes.INTEGER,
-    },
-    constituency: {
-      type: DataTypes.INTEGER,
-    },
-    panchayat: {
+    state_id: {
       type: DataTypes.INTEGER,
     },
     city: {
       type: DataTypes.STRING,
     },
-    village: {
-      type: DataTypes.INTEGER,
-    },
     address: {
       type: DataTypes.STRING,
+    },
+    district_id: {
+      type: DataTypes.INTEGER,
+    },
+    constituency_id: {
+      type: DataTypes.INTEGER,
+    },
+    constituency_number: {
+      type: DataTypes.INTEGER,
+    },
+    panchayat_id: {
+      type: DataTypes.INTEGER,
+    },
+    village_id: {
+      type: DataTypes.INTEGER,
     },
     pin_code: {
       type: DataTypes.STRING(6),

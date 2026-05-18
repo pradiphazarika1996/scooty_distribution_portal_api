@@ -2,8 +2,8 @@ import { NextFunction, Request, Response } from "express";
 import {
   APPLICATION_STATUS,
   generateApplicationNumber,
-} from "../../helpers/application";
-import { getCurrentAcademicYear } from "../../helpers/student";
+} from "../../helpers/students/application";
+import { getCurrentAcademicYear } from "../../helpers/students/student";
 import Application from "../../models/student/Application.model";
 import Student from "../../models/student/Student.model";
 import {
@@ -11,16 +11,13 @@ import {
   validateExamEligibility,
 } from "../../services/ApplicationEligibilityService";
 
-/**
- * GET /api/student/scholarship/eligibility
- */
 export const getEligibility = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const studentId = (req as any).user.id;
+    const studentId = req.payload.id;
     const result = await checkEligibility(studentId);
 
     return res.json({
@@ -35,17 +32,13 @@ export const getEligibility = async (
   }
 };
 
-/**
- * GET /api/student/scholarship/application
- * Returns the current draft or most recent submitted application.
- */
 export const getApplication = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const studentId = (req as any).user.id;
+    const studentId = req.payload.id;
 
     // Prefer draft, fallback to latest
     let application = await Application.findOne({
@@ -72,18 +65,13 @@ export const getApplication = async (
   }
 };
 
-/**
- * POST /api/student/scholarship/application/create-draft
- * Creates a DRAFT application when student selects an exam.
- * This is when the form starts — all subsequent saves go to this record.
- */
 export const createDraft = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const studentId = (req as any).user.id;
+    const studentId = req.payload.id;
     const { examId } = req.body;
 
     // Check eligibility
@@ -124,17 +112,13 @@ export const createDraft = async (
   }
 };
 
-/**
- * PUT /api/student/scholarship/application/save-step
- * Saves form data to the DRAFT application.
- */
 export const saveStep = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const studentId = (req as any).user.id;
+    const studentId = req.payload.id;
     const { step, data } = req.body;
 
     // Find the draft application
@@ -150,28 +134,38 @@ export const saveStep = async (
     }
 
     // Step 1: Personal details → save to Student
-    if (data.personalDetails) {
-      await Student.update(data.personalDetails, {
+    if (data.student) {
+      await Student.update(data.student, {
         where: { id: studentId },
       });
     }
 
     // Step 2: Academic & Bank → save to Application
-    if (data.academicDetails || data.bankDetails) {
+    if (data.application) {
       await application.update({
-        ...data.academicDetails,
-        ...data.bankDetails,
+        ...data.application,
       });
     }
 
     // Step 3: Documents → handled by separate upload endpoint
 
     // Track completed steps
-    const completedSteps: number[] =
-      application.getDataValue("completed_steps") || [];
+    let completedSteps: any = application.getDataValue("completed_steps") || [];
+    while (typeof completedSteps === "string") {
+      try {
+        completedSteps = JSON.parse(completedSteps);
+      } catch {
+        completedSteps = [];
+        break;
+      }
+    }
+    if (!Array.isArray(completedSteps)) completedSteps = [];
+
     if (!completedSteps.includes(step)) {
       completedSteps.push(step);
-      await application.update({ completed_steps: completedSteps });
+      await application.update({
+        completed_steps: completedSteps,
+      });
     }
 
     return res.json({
@@ -183,17 +177,13 @@ export const saveStep = async (
   }
 };
 
-/**
- * POST /api/student/scholarship/application/submit
- * Moves draft → submitted. Generates application number, locks, snapshots.
- */
 export const submitApplication = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const studentId = (req as any).user.id;
+    const studentId = req.payload.id;
 
     const application = await Application.findOne({
       where: {

@@ -1,6 +1,6 @@
 import { Op } from "sequelize";
-import { APPLICATION_STATUS } from "../helpers/application";
-import { EXAM_HIERARCHY } from "../helpers/student";
+import { APPLICATION_STATUS } from "../helpers/students/application";
+import { EXAM_HIERARCHY } from "../helpers/students/student";
 import Application from "../models/student/Application.model";
 
 interface EligibilityResult {
@@ -9,6 +9,7 @@ interface EligibilityResult {
   reason?: string;
   existingApplications: any[];
   draftApplication?: any;
+  eligibleAfter?: string; // ISO date when next exam becomes available
 }
 
 /**
@@ -18,8 +19,8 @@ interface EligibilityResult {
  * - A student cannot apply for the same exam_id twice.
  * - A student cannot apply for an exam with a lower level
  *   than any existing (non-rejected) application.
- * - If a draft exists for an exam, that exam is "in progress",
- *   not available for a new draft.
+ * - If minGapYears > 0, the student must wait that many years
+ *   after the prerequisite exam's submission date.
  */
 export const checkEligibility = async (
   studentId: number,
@@ -34,11 +35,12 @@ export const checkEligibility = async (
 
   // Find any in-progress draft
   const draftApplication = existingApplications.find(
-    (app: any) => app.application_status === APPLICATION_STATUS.DRAFT,
+    (app) =>
+      app.getDataValue("application_status") === APPLICATION_STATUS.DRAFT,
   );
 
   const appliedExamIds = existingApplications.map(
-    (app: any) => app.exam_id as number,
+    (app) => app.getDataValue("exam_id") as number,
   );
 
   // Highest level the student has applied for
@@ -49,6 +51,8 @@ export const checkEligibility = async (
 
   // Filter allowed exams from hierarchy
   const allExamIds = Object.keys(EXAM_HIERARCHY).map(Number);
+  let eligibleAfter: string | undefined;
+
   const allowedExams = allExamIds.filter((examId) => {
     const config = EXAM_HIERARCHY[examId];
 
@@ -57,6 +61,30 @@ export const checkEligibility = async (
 
     // Cannot apply for a lower level than what's already done
     if (config.level < highestAppliedLevel) return false;
+
+    // Check minimum gap from prerequisite exams
+    if (config.minGapYears > 0 && config.canApplyAfter.length > 0) {
+      const prerequisiteApp = existingApplications.find(
+        (app) =>
+          config.canApplyAfter.includes(app.getDataValue("exam_id")) &&
+          app.getDataValue("submitted_at"),
+      );
+
+      if (prerequisiteApp) {
+        const submittedAt = new Date(
+          prerequisiteApp.getDataValue("submitted_at"),
+        );
+        const earliestDate = new Date(submittedAt);
+        earliestDate.setFullYear(
+          earliestDate.getFullYear() + config.minGapYears,
+        );
+
+        if (new Date() < earliestDate) {
+          eligibleAfter = earliestDate.toISOString();
+          return false;
+        }
+      }
+    }
 
     return true;
   });
@@ -67,6 +95,13 @@ export const checkEligibility = async (
   if (!canApply) {
     if (appliedExamIds.length >= allExamIds.length) {
       reason = "You have already applied for all available scholarships.";
+    } else if (eligibleAfter) {
+      const date = new Date(eligibleAfter).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      reason = `You can apply for the next scholarship after ${date}.`;
     } else {
       reason =
         "You are not eligible to apply for any remaining scholarships based on your application history.";
@@ -79,6 +114,7 @@ export const checkEligibility = async (
     reason,
     existingApplications,
     draftApplication,
+    eligibleAfter,
   };
 };
 
