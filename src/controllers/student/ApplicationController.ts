@@ -197,8 +197,9 @@ export const submitApplication = async (
     }
 
     // Validate all steps are completed
+    const rawSteps = application.getDataValue("completed_steps");
     const completedSteps: number[] =
-      application.getDataValue("completed_steps") || [];
+      typeof rawSteps === "string" ? JSON.parse(rawSteps) : rawSteps || [];
     const requiredSteps = [1, 2, 3];
     const missingSteps = requiredSteps.filter(
       (s) => !completedSteps.includes(s),
