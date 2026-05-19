@@ -197,20 +197,20 @@ export default {
 
       const accessToken = await signAccessToken(user.id);
       const refreshToken = await signRefreshToken(user.id);
-      // res.cookie("access_token", accessToken, {
-      //   httpOnly: true,
-      //   secure: true,
-      //   domain: ".pmsportal.org",
-      //   sameSite: "none",
-      //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
-      // });
-
       res.cookie('access_token', accessToken, {
         httpOnly: true,
-        secure: false,
-        sameSite: 'lax',
+        secure: true,
+        domain: '.macasp.org',
+        sameSite: 'none',
         maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
       });
+
+      // res.cookie("access_token", accessToken, {
+      //   httpOnly: true,
+      //   secure: false,
+      //   sameSite: "lax",
+      //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
+      // });
 
       res.status(200).send({
         status: true,
