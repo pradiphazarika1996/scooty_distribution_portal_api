@@ -58,6 +58,9 @@ const Application = sequelize.define(
     board_id: {
       type: DataTypes.INTEGER,
     },
+    other_board_name: {
+      type: DataTypes.STRING,
+    },
     roll_no: {
       type: DataTypes.STRING,
     },
@@ -80,8 +83,8 @@ const Application = sequelize.define(
     },
 
     // ── Bank Details (per-application, may differ) ──
-    bank_id: {
-      type: DataTypes.INTEGER,
+    bank_name: {
+      type: DataTypes.STRING,
     },
     branch_name: {
       type: DataTypes.STRING,

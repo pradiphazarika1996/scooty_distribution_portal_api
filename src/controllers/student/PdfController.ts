@@ -1,25 +1,24 @@
 import { NextFunction, Request, Response } from "express";
-import path from "path";
 import PDFDocument from "pdfkit";
-import { APPLICATION_STATUS } from "../../helpers/students/application";
-import Application from "../../models/student/Application.model";
-import Student from "../../models/student/Student.model";
-
-// Lookup models — adjust imports to match your project
-import Constituency from "../../models/masters/Constituency.model";
-import District from "../../models/masters/District.model";
-import Panchayat from "../../models/masters/Panchayat.model";
-// import State from "../../models/master/State.model";
-import { getBankName } from "../../helpers/students/banks";
 import {
+  APPLICATION_STATUS,
+  getStateName,
+} from "../../helpers/students/application";
+import {
+  BOARDS,
+  CASTE,
   getBoardName,
   getCasteName,
   getExamTypeName,
   getGenderName,
 } from "../../helpers/students/student";
+import Constituency from "../../models/masters/Constituency.model";
+import District from "../../models/masters/District.model";
 import Village from "../../models/masters/Village.model";
+import Application from "../../models/student/Application.model";
+import Student from "../../models/student/Student.model";
 
-const LOGO_PATH = path.resolve(__dirname, "../../assets/images/MAC logo.png");
+export const VILLAGE_OTHER = -1;
 
 const COLORS = {
   primary: "#8900d4",
@@ -71,31 +70,48 @@ function drawRow(
   const labelWidth = 180;
   const valueWidth = contentWidth - labelWidth;
 
-  // Bottom border
-  doc
-    .moveTo(margins.left, y + 22)
-    .lineTo(margins.left + contentWidth, y + 22)
-    .strokeColor(COLORS.border)
-    .lineWidth(0.5)
-    .stroke();
+  // Measure heights for multi-line support
+  const labelHeight = doc
+    .font("Helvetica-Bold")
+    .fontSize(8.5)
+    .heightOfString(item.label.toUpperCase(), { width: labelWidth - 20 });
 
+  const valueHeight = doc
+    .font("Helvetica")
+    .fontSize(9.5)
+    .heightOfString(item.value || "—", { width: valueWidth - 20 });
+
+  const contentHeight = Math.max(labelHeight, valueHeight);
+  const rowHeight = Math.max(32, contentHeight + 16);
+  const textY = y + (rowHeight - contentHeight) / 2;
+
+  // Label
   doc
     .font("Helvetica-Bold")
     .fontSize(8.5)
     .fillColor(COLORS.textLight)
-    .text(item.label.toUpperCase(), margins.left + 12, y + 6, {
-      width: labelWidth,
+    .text(item.label.toUpperCase(), margins.left + 12, textY, {
+      width: labelWidth - 20,
     });
 
+  // Value
   doc
     .font("Helvetica")
     .fontSize(9.5)
     .fillColor(COLORS.text)
-    .text(item.value || "—", margins.left + labelWidth + 8, y + 5, {
+    .text(item.value || "—", margins.left + labelWidth + 8, textY, {
       width: valueWidth - 20,
     });
 
-  return y + 24;
+  // Bottom border
+  doc
+    .moveTo(margins.left, y + rowHeight)
+    .lineTo(margins.left + contentWidth, y + rowHeight)
+    .strokeColor(COLORS.border)
+    .lineWidth(0.5)
+    .stroke();
+
+  return y + rowHeight;
 }
 
 function checkPage(
@@ -145,28 +161,10 @@ export const downloadApplicationPdf = async (
     const ad = application.toJSON() as any;
 
     // Resolve all IDs to names in parallel
-    const [
-      gender,
-      caste,
-      district,
-      constituency,
-      panchayat,
-      village,
-      // state,
-      exam,
-      board,
-      bank,
-    ] = await Promise.all([
-      sd.gender_id ? getGenderName(sd.gender_id) : null,
-      sd.caste_id ? getCasteName(sd.caste_id) : null,
+    const [district, constituency, village] = await Promise.all([
       sd.district_id ? District.findByPk(sd.district_id) : null,
       sd.constituency_id ? Constituency.findByPk(sd.constituency_id) : null,
-      sd.panchayat_id ? Panchayat.findByPk(sd.panchayat_id) : null,
       sd.village_id ? Village.findByPk(sd.village_id) : null,
-      // sd.state_id ? State.findByPk(sd.state_id) : null,
-      ad.exam_id ? getExamTypeName(ad.exam_id) : null,
-      ad.board_id ? getBoardName(ad.board_id) : null,
-      ad.bank_id ? getBankName(ad.bank_id) : null,
     ]);
 
     const getName = (model: any): string => {
@@ -179,10 +177,20 @@ export const downloadApplicationPdf = async (
     // Build address
     const isOutside = sd.is_outside_mac_area;
     const address = isOutside
-      ? [sd.address, sd.city, "N/A", sd.pin_code].filter(Boolean).join(", ")
+      ? [
+          sd.permanent_address,
+          sd.present_address,
+          sd.city,
+          getStateName(sd.state_id),
+          sd.pin_code,
+        ]
+          .filter(Boolean)
+          .join(", ")
       : [
-          getName(village),
-          getName(panchayat),
+          sd.village_id === VILLAGE_OTHER
+            ? sd.other_village_name
+            : getName(village),
+          sd.panchayat_name,
           getName(constituency),
           getName(district),
           sd.pin_code,
@@ -228,69 +236,68 @@ export const downloadApplicationPdf = async (
     };
     const contentWidth = pageWidth - margins.left - margins.right;
 
-    // ── Header ──
+    // ── Header (centered, no logo) ──
     let y = doc.page.margins.top;
-
-    try {
-      doc.image(LOGO_PATH, margins.left, y, { height: 50 });
-    } catch {
-      // Logo not found, skip
-    }
 
     doc
       .font("Helvetica-Bold")
-      .fontSize(16)
+      .fontSize(18)
       .fillColor(COLORS.primary)
-      .text("MAC Scholarship", margins.left + 65, y + 5, { width: 300 });
+      .text("Mising Autonomous Council (MAC)", margins.left, y, {
+        width: contentWidth,
+        align: "center",
+      });
+
+    y += 26;
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(14)
+      .fillColor(COLORS.primary)
+      .text("Tabu Taid Shiksha Jyoti Scheme", margins.left, y, {
+        width: contentWidth,
+        align: "center",
+      });
+
+    y += 20;
 
     doc
       .font("Helvetica")
-      .fontSize(9)
+      .fontSize(10)
       .fillColor(COLORS.textLight)
-      .text("Application Form", margins.left + 65, y + 25);
+      .text("Application Form", margins.left, y, {
+        width: contentWidth,
+        align: "center",
+      });
 
-    // Application number & date on the right
+    y += 20;
+
+    // Application number (right) & generated date (left)
+    const generatedAt = new Date().toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    doc
+      .font("Helvetica")
+      .fontSize(7.5)
+      .fillColor(COLORS.textLight)
+      .text(`Generated: ${generatedAt}`, margins.left, y);
+
     if (ad.application_number) {
       doc
         .font("Helvetica-Bold")
-        .fontSize(9)
+        .fontSize(8)
         .fillColor(COLORS.text)
         .text(
           `Application No: ${ad.application_number}`,
           pageWidth - margins.right - 200,
-          y + 5,
-          {
-            width: 200,
-            align: "right",
-          },
+          y,
+          { width: 200, align: "right" },
         );
     }
 
-    if (ad.submitted_at) {
-      const submittedDate = new Date(ad.submitted_at).toLocaleDateString(
-        "en-IN",
-        {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        },
-      );
-      doc
-        .font("Helvetica")
-        .fontSize(8)
-        .fillColor(COLORS.textLight)
-        .text(
-          `Submitted: ${submittedDate}`,
-          pageWidth - margins.right - 200,
-          y + 20,
-          {
-            width: 200,
-            align: "right",
-          },
-        );
-    }
-
-    y += 60;
+    y += 16;
 
     // Divider
     doc
@@ -307,11 +314,20 @@ export const downloadApplicationPdf = async (
 
     const personalRows: RowItem[] = [
       { label: "Applicant Name", value: sd.name || "—" },
-      { label: "Father / Mother / Guardian", value: sd.guardian_name || "—" },
-      { label: "Gender", value: getName(gender) },
+      { label: "Father / Guardian", value: sd.guardian_name || "—" },
+      { label: "Gender", value: getGenderName(sd.gender_id) },
       { label: "Date of Birth", value: dob },
-      { label: "Caste", value: getName(caste) },
-      { label: "Residing Outside MAC Area", value: isOutside ? "Yes" : "No" },
+      {
+        label: "Caste",
+        value:
+          sd.caste_id === CASTE.OTHER
+            ? sd.other_caste_name || "—"
+            : getCasteName(sd.caste_id) || "—",
+      },
+      {
+        label: "Are you a resident of MAC notified village area?",
+        value: isOutside ? "Yes" : "No",
+      },
       { label: "Address", value: address || "—" },
       { label: "Aadhaar Number", value: sd.aadhaar_number || "—" },
       { label: "Phone Number", value: sd.phone || "—" },
@@ -330,12 +346,18 @@ export const downloadApplicationPdf = async (
     y = drawSectionHeader(doc, "Academic Details", y);
 
     const academicRows: RowItem[] = [
-      { label: "Examination Passed", value: getName(exam) },
+      { label: "Examination Passed", value: getExamTypeName(ad.exam_id) },
       {
         label: "Year of Passing",
         value: ad.year_of_passing ? String(ad.year_of_passing) : "—",
       },
-      { label: "Board Name", value: getName(board) },
+      {
+        label: "Board Name",
+        value:
+          ad.board_id === BOARDS.OTHER
+            ? ad.other_board_name || "—"
+            : getBoardName(ad.board_id),
+      },
       { label: "Roll No.", value: ad.roll_no || "—" },
       { label: marksLabel, value: marksValue },
       { label: "Institution Name", value: ad.institution_name || "—" },
@@ -354,7 +376,7 @@ export const downloadApplicationPdf = async (
     y = drawSectionHeader(doc, "Bank Details", y);
 
     const bankRows: RowItem[] = [
-      { label: "Bank Name", value: getName(bank) },
+      { label: "Bank Name", value: ad.bank_name || "—" },
       { label: "Branch", value: ad.branch_name || "—" },
       { label: "Account No.", value: ad.account_no || "—" },
       { label: "IFSC Code", value: ad.ifsc_code || "—" },

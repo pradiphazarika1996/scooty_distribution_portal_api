@@ -11,7 +11,7 @@ const router = Router();
 
 router.get("/", getProfile);
 router.patch("/", updateProfile);
-router.patch("/avatar", singleUpload("avatar"), uploadAvatar);
+router.patch("/avatar", singleUpload("file"), uploadAvatar);
 router.delete("/avatar", removeAvatar);
 
 export default router;

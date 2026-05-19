@@ -39,7 +39,7 @@ export function getExamTypeName(value: number) {
 
 // BOARDS
 export const BOARDS = Object.freeze({
-  SEBA: 1,
+  ASSEB: 1,
   CBSE: 2,
   ICSE: 3,
   OTHER: 4,
@@ -59,14 +59,29 @@ export function getBoardName(value: number) {
 export const CASTE = Object.freeze({
   GENERAL: 1,
   OBC: 2,
-  SC: 3,
-  ST: 4,
+  MOBC: 3,
+  SC: 4,
+  ST_P: 5,
+  ST_H: 6,
+  EWS: 7,
+  OTHER: 8,
 });
 
-export const CASTE_OPTIONS = Object.entries(CASTE).map(([label, value]) => ({
-  label,
-  value,
-}));
+export const CASTE_OPTIONS = [
+  { label: "General", value: 1 },
+  { label: "OBC", value: 2 },
+  { label: "MOBC", value: 3 },
+  { label: "SC", value: 4 },
+  { label: "ST(P)", value: 5 },
+  { label: "ST(H)", value: 6 },
+  { label: "EWS", value: 7 },
+  { label: "Other", value: 8 },
+];
+
+// export const CASTE_OPTIONS = Object.entries(CASTE).map(([label, value]) => ({
+//   label,
+//   value,
+// }));
 
 export function getCasteName(value: number) {
   const option = CASTE_OPTIONS.find((opt) => opt.value == value);

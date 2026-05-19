@@ -1,11 +1,16 @@
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { NextFunction, Request, Response } from "express";
-import { APPLICATION_STATUS } from "../../helpers/students/application";
+import createHttpError from "http-errors";
+import {
+  APPLICATION_STATUS,
+  DOCUMENT_TYPES,
+} from "../../helpers/students/application";
+import { BUCKET_NAME } from "../../middleware/uploadFile";
 import Application from "../../models/student/Application.model";
 import Document from "../../models/student/Document.model";
+import Student from "../../models/student/Student.model";
 import s3 from "../../services/AwsS3Client";
-
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME ?? "";
 
 /**
  * POST /api/student/application/documents
@@ -76,6 +81,14 @@ export const uploadDocument = async (
       file_type: file.originalname.split(".").pop()?.toLowerCase() || "unknown",
       file_size: file.size,
     });
+
+    // Update student avatar if passport photo
+    if (Number(docType) === DOCUMENT_TYPES.PASSPORT) {
+      await Student.update(
+        { avatar_url: file.key },
+        { where: { id: studentId } },
+      );
+    }
 
     return res.status(201).json({
       message: "Document uploaded successfully",
@@ -177,7 +190,43 @@ export const deleteDocument = async (
 
     await document.destroy();
 
+    // Clear avatar if passport photo was deleted
+    if (Number(docType) === DOCUMENT_TYPES.PASSPORT) {
+      await Student.update({ avatar_key: null }, { where: { id: studentId } });
+    }
+
     return res.json({ message: "Document deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDocumentUrl = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const studentId = req.payload.id;
+    const { id } = req.params;
+
+    const document = await Document.findOne({
+      where: { id, student_id: studentId },
+    });
+
+    if (!document) {
+      throw createHttpError(404, "Document not found");
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: document.getDataValue("file_path"),
+      ResponseContentDisposition: `inline; filename="${document.getDataValue("file_name")}"`,
+    });
+
+    const url = await getSignedUrl(s3 as any, command, { expiresIn: 300 });
+
+    return res.json({ status: true, url });
   } catch (error) {
     next(error);
   }

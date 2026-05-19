@@ -1,6 +1,5 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../config/sequelize";
-import Village from "./Village.model";
 
 const Panchayat = sequelize.define(
   "panchayat",
@@ -29,11 +28,7 @@ const Panchayat = sequelize.define(
   {
     timestamps: true,
     underscored: true,
-    // indexes: [{ fields: ["code"], unique: true }, { fields: ["district_id"] }],
   },
 );
-
-Panchayat.hasMany(Village, { foreignKey: "panchayat_id" });
-Village.belongsTo(Panchayat, { foreignKey: "panchayat_id" });
 
 export default Panchayat;

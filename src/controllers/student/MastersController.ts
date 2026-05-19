@@ -180,10 +180,10 @@ export default {
   },
   getVillages: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { panchayat_id } = req.query;
-      if (!panchayat_id) throw httpError.BadRequest();
+      const { constituency_id } = req.query;
+      if (!constituency_id) throw httpError.BadRequest();
       // const cachedVillages = await getApiCache(
-      //   getCacheKey(API_NAME.VILLAGES, panchayat_id),
+      //   getCacheKey(API_NAME.VILLAGES, constituency_id),
       // );
 
       // if (cachedVillages)
@@ -191,7 +191,7 @@ export default {
 
       const whereClause: any = {};
 
-      if (panchayat_id) whereClause.panchayat_id = panchayat_id;
+      if (constituency_id) whereClause.constituency_id = constituency_id;
 
       const villages = await Village.findAll({
         attributes: [
@@ -199,10 +199,8 @@ export default {
           "name",
           "district_id",
           "constituency_id",
-          "panchayat_id",
           [Sequelize.literal("district.name"), "district_name"],
           [Sequelize.literal("constituency.name"), "constituency_name"],
-          [Sequelize.literal("panchayat.name"), "panchayat_name"],
         ],
 
         include: [
@@ -212,10 +210,6 @@ export default {
           },
           {
             model: Constituency,
-            attributes: [],
-          },
-          {
-            model: Panchayat,
             attributes: [],
           },
         ],
@@ -238,7 +232,7 @@ export default {
       const villageId = req.params.id;
       let data = await Village.findOne({
         where: { id: villageId },
-        attributes: ["id", "name"],
+        attributes: ["id", "name", "district_id", "constituency_id"],
       }).catch((err) => {
         throw httpError.InternalServerError();
       });

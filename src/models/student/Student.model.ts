@@ -47,6 +47,9 @@ const Student = sequelize.define(
     caste_id: {
       type: DataTypes.INTEGER,
     },
+    other_caste_name: {
+      type: DataTypes.STRING,
+    },
     aadhaar_number: {
       type: DataTypes.STRING(12),
     },
@@ -62,7 +65,10 @@ const Student = sequelize.define(
     city: {
       type: DataTypes.STRING,
     },
-    address: {
+    permanent_address: {
+      type: DataTypes.STRING,
+    },
+    present_address: {
       type: DataTypes.STRING,
     },
     district_id: {
@@ -74,11 +80,17 @@ const Student = sequelize.define(
     constituency_number: {
       type: DataTypes.INTEGER,
     },
-    panchayat_id: {
-      type: DataTypes.INTEGER,
-    },
     village_id: {
       type: DataTypes.INTEGER,
+    },
+    other_village_name: {
+      type: DataTypes.STRING,
+    },
+    panchayat_name: {
+      type: DataTypes.STRING,
+    },
+    municipal_area: {
+      type: DataTypes.STRING,
     },
     pin_code: {
       type: DataTypes.STRING(6),

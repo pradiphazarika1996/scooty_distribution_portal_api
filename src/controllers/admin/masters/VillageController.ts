@@ -1,10 +1,9 @@
 import { NextFunction, Request, Response } from "express";
 import httpError from "http-errors";
 import { Sequelize } from "sequelize";
-import Panchayat from "../../../models/masters/Panchayat.model";
-import Village from "../../../models/masters/Village.model";
 import Constituency from "../../../models/masters/Constituency.model";
 import District from "../../../models/masters/District.model";
+import Village from "../../../models/masters/Village.model";
 
 export default {
   // creates new village
@@ -73,7 +72,7 @@ export default {
       const villageId = req.params.id;
       let data = await Village.findOne({
         where: { id: villageId },
-        attributes: ["id", "name", "panchayat_id", "district_id"],
+        attributes: ["id", "name", "district_id", "constituency_id"],
       }).catch((err) => {
         throw httpError.InternalServerError();
       });
@@ -89,21 +88,19 @@ export default {
   // fetches single villages
   getVillages: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { panchayat_id } = req.query;
+      const { constituency_id } = req.query;
       const whereClause: any = {};
 
-      if (panchayat_id) whereClause.panchayat_id = panchayat_id;
+      if (constituency_id) whereClause.constituency_id = constituency_id;
 
       const villages = await Village.findAll({
         attributes: [
           "id",
           "name",
-          "panchayat_id",
           "district_id",
           "constituency_id",
           [Sequelize.literal("District.name"), "district_name"],
           [Sequelize.literal("Constituency.name"), "constituency_name"],
-          [Sequelize.literal("Panchayat.name"), "panchayat_name"],
         ],
 
         include: [
@@ -113,10 +110,6 @@ export default {
           },
           {
             model: Constituency,
-            attributes: [],
-          },
-          {
-            model: Panchayat,
             attributes: [],
           },
         ],

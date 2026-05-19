@@ -1,7 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../config/sequelize";
 import Constituency from "./Constituency.model";
-import Panchayat from "./Panchayat.model";
 import Village from "./Village.model";
 
 const District = sequelize.define(
@@ -29,9 +28,6 @@ const District = sequelize.define(
 
 District.hasMany(Constituency, { foreignKey: "district_id" });
 Constituency.belongsTo(District, { foreignKey: "district_id" });
-
-District.hasMany(Panchayat, { foreignKey: "district_id" });
-Panchayat.belongsTo(District, { foreignKey: "district_id" });
 
 District.hasMany(Village, { foreignKey: "district_id" });
 Village.belongsTo(District, { foreignKey: "district_id" });
