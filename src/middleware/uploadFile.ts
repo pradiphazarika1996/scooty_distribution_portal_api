@@ -5,7 +5,7 @@ import path from "path";
 import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE } from "../helpers/constants";
 import s3 from "../services/AwsS3Client";
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME ?? "";
+export const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME ?? "";
 
 const uploadFile = multer({
   storage: multerS3({

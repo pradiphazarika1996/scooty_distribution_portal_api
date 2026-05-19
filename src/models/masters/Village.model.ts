@@ -19,9 +19,6 @@ const Village = sequelize.define(
     constituency_id: {
       type: DataTypes.INTEGER,
     },
-    panchayat_id: {
-      type: DataTypes.INTEGER,
-    },
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
@@ -30,7 +27,6 @@ const Village = sequelize.define(
   {
     timestamps: true,
     underscored: true,
-    indexes: [{ fields: ["panchayat_id"] }],
   },
 );
 

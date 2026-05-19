@@ -23,7 +23,7 @@ const Document = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       comment:
-        "1: govt_id, 2: marksheet, 3: age_proof, 4: address_proof, 5: school_pass_certificate, 6: bank_pass_book, 7: caste_certificate, 8: bank_account_details",
+        "1: govt_id, 2: marksheet, 3: age_proof, 4: address_proof, 5: school_pass_certificate, 6: bank_pass_book, 7: caste_certificate, 8: passport_photo",
     },
     file_name: {
       type: DataTypes.STRING,

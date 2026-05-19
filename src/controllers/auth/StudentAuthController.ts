@@ -119,6 +119,7 @@ export default {
       // }
       const student: any = await Student.create({
         ...studentData,
+        role_id: UserType.STUDENT,
         account_status: AccountStatus.ACTIVE,
         is_phone_verified: true,
       }).catch((error) => {

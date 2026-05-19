@@ -9,13 +9,11 @@ import {
 import {
   deleteDocument,
   getDocuments,
+  getDocumentUrl,
   uploadDocument,
 } from "../../controllers/student/DocumentController";
 import { downloadApplicationPdf } from "../../controllers/student/PdfController";
-import jwt from "../../middleware/jwt";
 import { singleUpload } from "../../middleware/uploadFile";
-
-const verifyAccessToken = jwt.signStudentAccessToken;
 
 const router = Router();
 
@@ -29,6 +27,7 @@ router.post("/submit", submitApplication);
 router.get("/documents", getDocuments);
 router.post("/documents", singleUpload("file"), uploadDocument);
 router.delete("/documents/:docType", deleteDocument);
+router.get("/documents/:id/url", getDocumentUrl);
 
 // pdf download
 router.get("/:applicationId/pdf", downloadApplicationPdf);
