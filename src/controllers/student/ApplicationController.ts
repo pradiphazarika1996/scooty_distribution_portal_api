@@ -205,12 +205,12 @@ export const submitApplication = async (
       (s) => !completedSteps.includes(s),
     );
 
-    if (missingSteps.length > 0) {
-      return res.status(400).json({
-        message: "Please complete all steps before submitting.",
-        missingSteps,
-      });
-    }
+    // if (missingSteps.length > 0) {
+    //   return res.status(400).json({
+    //     message: "Please complete all steps before submitting.",
+    //     missingSteps,
+    //   });
+    // }
 
     // Snapshot student profile at submission
     const student = await Student.findByPk(studentId, {
