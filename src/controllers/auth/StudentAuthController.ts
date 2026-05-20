@@ -217,21 +217,21 @@ export default {
       });
 
       const accessToken = await signAccessToken(student.id);
-      // const refreshToken = await signRefreshToken(student.id);
-      // res.cookie("access_token", accessToken, {
-      //   httpOnly: true,
-      //   secure: true,
-      //   domain: ".macasp.org",
-      //   sameSite: "none",
-      //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
-      // });
-
+      const refreshToken = await signRefreshToken(student.id);
       res.cookie("access_token", accessToken, {
         httpOnly: true,
-        secure: false,
-        sameSite: "lax",
+        secure: true,
+        domain: ".macasp.org",
+        sameSite: "none",
         maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
       });
+
+      // res.cookie("access_token", accessToken, {
+      //   httpOnly: true,
+      //   secure: false,
+      //   sameSite: "lax",
+      //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
+      // });
 
       res.status(200).send({
         status: true,
@@ -251,8 +251,8 @@ export default {
   },
   logout: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // res.clearCookie("access_token", { domain: ".macasp.org" });
-      res.clearCookie("access_token");
+      res.clearCookie("access_token", { domain: ".macasp.org" });
+      // res.clearCookie("access_token");
       res.status(200).send({ status: true });
     } catch (err) {
       next(err);
