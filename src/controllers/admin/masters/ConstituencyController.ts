@@ -102,7 +102,7 @@ export default {
           "name",
           // "code",
           "district_id",
-          [Sequelize.literal("District.name"), "district_name"],
+          [Sequelize.literal("district.name"), "district_name"],
         ],
         include: [
           {
