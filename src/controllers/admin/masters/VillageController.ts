@@ -99,8 +99,8 @@ export default {
           "name",
           "district_id",
           "constituency_id",
-          [Sequelize.literal("District.name"), "district_name"],
-          [Sequelize.literal("Constituency.name"), "constituency_name"],
+          [Sequelize.literal("district.name"), "district_name"],
+          [Sequelize.literal("constituency.name"), "constituency_name"],
         ],
 
         include: [
