@@ -25,4 +25,5 @@ export const ALLOWED_FILE_TYPES = [
 
 export const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-export const ACCESS_TOKEN = "access_token";
+export const ADMIN_ACCESS_TOKEN = "admin_access_token";
+export const STUDENT_ACCESS_TOKEN = "student_access_token";

@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import httpError from "http-errors";
 import {
-  ACCESS_TOKEN,
   ACCESS_TOKEN_COOKIE_VALIDITY,
+  STUDENT_ACCESS_TOKEN,
 } from "../../helpers/constants";
 import { REDIS_TTL } from "../../helpers/redisKeys";
 import { canRequestOtp } from "../../helpers/redisUtils";
@@ -130,20 +130,20 @@ export default {
 
       const accessToken = await signAccessToken(student.id);
 
-      // res.cookie("access_token", accessToken, {
-      //   httpOnly: true,
-      //   secure: true,
-      //   domain: ".macasp.org",
-      //   sameSite: "none",
-      //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
-      // });
-
       res.cookie("access_token", accessToken, {
         httpOnly: true,
-        secure: false,
-        sameSite: "lax",
+        secure: true,
+        domain: ".macasp.org",
+        sameSite: "none",
         maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
       });
+
+      // res.cookie("access_token", accessToken, {
+      //   httpOnly: true,
+      //   secure: false,
+      //   sameSite: "lax",
+      //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
+      // });
 
       res.status(200).send({
         status: true,
@@ -222,20 +222,20 @@ export default {
 
       const accessToken = await signAccessToken(student.id);
       const refreshToken = await signRefreshToken(student.id);
-      // res.cookie("access_token", accessToken, {
-      //   httpOnly: true,
-      //   secure: true,
-      //   domain: ".macasp.org",
-      //   sameSite: "none",
-      //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
-      // });
-
       res.cookie("access_token", accessToken, {
         httpOnly: true,
-        secure: false,
-        sameSite: "lax",
+        secure: true,
+        domain: ".macasp.org",
+        sameSite: "none",
         maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
       });
+
+      // res.cookie("access_token", accessToken, {
+      //   httpOnly: true,
+      //   secure: false,
+      //   sameSite: "lax",
+      //   maxAge: ACCESS_TOKEN_COOKIE_VALIDITY,
+      // });
 
       res.status(200).send({
         status: true,
@@ -255,8 +255,8 @@ export default {
   },
   logout: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // res.clearCookie(ACCESS_TOKEN, { domain: ".macasp.org" });
-      res.clearCookie(ACCESS_TOKEN);
+      res.clearCookie(STUDENT_ACCESS_TOKEN, { domain: ".macasp.org" });
+      // res.clearCookie(STUDENT_ACCESS_TOKEN);
       res.status(200).send({ status: true });
     } catch (err) {
       next(err);
