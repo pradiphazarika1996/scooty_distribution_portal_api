@@ -1,9 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import httpError from "http-errors";
-import {
-  ACCESS_TOKEN_COOKIE_VALIDITY,
-  STUDENT_ACCESS_TOKEN,
-} from "../../helpers/constants";
+import { ACCESS_TOKEN_COOKIE_VALIDITY } from "../../helpers/constants";
 import { REDIS_TTL } from "../../helpers/redisKeys";
 import { canRequestOtp } from "../../helpers/redisUtils";
 import { AccountStatus, UserType } from "../../helpers/status";
@@ -255,8 +252,8 @@ export default {
   },
   logout: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      res.clearCookie(STUDENT_ACCESS_TOKEN, { domain: ".macasp.org" });
-      // res.clearCookie(STUDENT_ACCESS_TOKEN);
+      res.clearCookie("access_token", { domain: ".macasp.org" });
+      // res.clearCookie("access_token");
       res.status(200).send({ status: true });
     } catch (err) {
       next(err);

@@ -219,6 +219,7 @@ export const submitApplication = async (
 
     const applicationNumber = await generateApplicationNumber(
       application.getDataValue("exam_id"),
+      application.getDataValue("id"),
     );
 
     await application.update({
