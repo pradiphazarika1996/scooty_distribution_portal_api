@@ -97,4 +97,22 @@ export default {
       res.status(err.status || 500).send({ status: false });
     }
   },
+  addUser: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await User.create({...req.body, role:UserType.ADMIN}).catch((err) => {
+        throw httpError.InternalServerError(err);
+      });
+      if (!data) throw httpError.InternalServerError();
+
+      res.status(200).send({
+        status: true,
+      });
+    } catch (err: any) {
+      console.log("add user error ", err);
+      res.status(err.status || 500).send({
+        status: false,
+        message: err.message,
+      });
+    }
+  },
 };
