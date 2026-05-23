@@ -1,6 +1,6 @@
+import axios from "axios";
 import { NextFunction, Request, Response } from "express";
 import httpError from "http-errors";
-import axios from "axios";
 import Contact from "../../models/landing/contact.model";
 
 const RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
@@ -22,7 +22,7 @@ export default {
 
       if (!fullName || !phone || !message || !recaptchaToken) {
         throw httpError.BadRequest(
-          "Full name, phone, message, and reCAPTCHA are required."
+          "Full name, phone, message, and reCAPTCHA are required.",
         );
       }
 
@@ -50,4 +50,21 @@ export default {
       });
     }
   },
+  getContacts: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const contacts = await Contact.findAll({
+        attributes: ["id", "full_name", "phone", "email", "message", "created_at"],
+        order: [["created_at", "DESC"]],
+      }).catch(() => {
+        throw httpError.InternalServerError();
+      });
+      res.status(200).send({ status: true, data: contacts });
+    } catch (err: any) {
+      res.status(err.status || 500).send({
+        status: false,
+        message: err.message,
+      });
+    }
+
+  }
 };
