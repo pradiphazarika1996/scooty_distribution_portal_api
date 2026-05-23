@@ -1,7 +1,10 @@
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { NextFunction, Request, Response } from "express";
 import PDFDocument from "pdfkit";
+import sharp from "sharp";
 import {
   APPLICATION_STATUS,
+  DOCUMENT_TYPES,
   getStateName,
 } from "../../helpers/students/application";
 import {
@@ -12,11 +15,14 @@ import {
   getExamTypeName,
   getGenderName,
 } from "../../helpers/students/student";
+import { BUCKET_NAME } from "../../middleware/uploadFile";
 import Constituency from "../../models/masters/Constituency.model";
 import District from "../../models/masters/District.model";
 import Village from "../../models/masters/Village.model";
 import Application from "../../models/student/Application.model";
+import Document from "../../models/student/Document.model";
 import Student from "../../models/student/Student.model";
+import s3 from "../../services/AwsS3Client";
 
 export const VILLAGE_OTHER = -1;
 
@@ -104,12 +110,12 @@ function drawRow(
     });
 
   // Bottom border
-  doc
-    .moveTo(margins.left, y + rowHeight)
-    .lineTo(margins.left + contentWidth, y + rowHeight)
-    .strokeColor(COLORS.border)
-    .lineWidth(0.5)
-    .stroke();
+  // doc
+  //   .moveTo(margins.left, y + rowHeight)
+  //   .lineTo(margins.left + contentWidth, y + rowHeight)
+  //   .strokeColor(COLORS.border)
+  //   .lineWidth(0.5)
+  //   .stroke();
 
   return y + rowHeight;
 }
@@ -167,6 +173,43 @@ export const downloadApplicationPdf = async (
       sd.village_id ? Village.findByPk(sd.village_id) : null,
     ]);
 
+    // Fetch passport photo from S3
+    let photoBuffer: Buffer | null = null;
+    const passportDoc = await Document.findOne({
+      where: {
+        application_id: application.getDataValue("id"),
+        student_id: studentId,
+        doc_type: DOCUMENT_TYPES.PASSPORT,
+      },
+    });
+
+    if (passportDoc) {
+      const filePath = passportDoc.getDataValue("file_path");
+
+      try {
+        const s3Response = await s3.send(
+          new GetObjectCommand({ Bucket: BUCKET_NAME, Key: filePath }),
+        );
+
+        if (s3Response.Body) {
+          const chunks: Buffer[] = [];
+          for await (const chunk of s3Response.Body as any) {
+            chunks.push(Buffer.from(chunk));
+          }
+          const rawBuffer = Buffer.concat(chunks);
+
+          // Normalize to JPEG for PDFKit compatibility
+          photoBuffer = await sharp(rawBuffer)
+            .resize(360, 440, { fit: "cover" })
+            .jpeg({ quality: 90 })
+            .toBuffer();
+        }
+      } catch (err) {
+        console.error("S3 fetch error:", err);
+        photoBuffer = null;
+      }
+    }
+
     const getName = (model: any): string => {
       if (!model) return "—";
       if (typeof model.getDataValue === "function")
@@ -175,24 +218,25 @@ export const downloadApplicationPdf = async (
     };
 
     // Build address
-    const isOutside = sd.is_outside_mac_area;
-    const address = isOutside
+    const isResident = sd.is_resident_of_mac_area;
+    const address = isResident
       ? [
-          sd.permanent_address,
-          sd.present_address,
-          sd.city,
-          getStateName(sd.state_id),
+          sd.village_id === VILLAGE_OTHER
+            ? sd.other_village_name
+            : getName(village),
+          sd.panchayat_name,
+          sd.municipal_area ? sd.municipal_area : null,
+          getName(constituency),
+          getName(district),
           sd.pin_code,
         ]
           .filter(Boolean)
           .join(", ")
       : [
-          sd.village_id === VILLAGE_OTHER
-            ? sd.other_village_name
-            : getName(village),
-          sd.panchayat_name,
-          getName(constituency),
-          getName(district),
+          sd.permanent_address,
+          sd.present_address,
+          sd.city,
+          getStateName(sd.state_id),
           sd.pin_code,
         ]
           .filter((v) => v && v !== "—")
@@ -272,7 +316,6 @@ export const downloadApplicationPdf = async (
 
     y += 20;
 
-    // Application number (right) & generated date (left)
     const generatedAt = new Date().toLocaleString("en-IN", {
       dateStyle: "medium",
       timeStyle: "short",
@@ -299,7 +342,7 @@ export const downloadApplicationPdf = async (
 
     y += 16;
 
-    // Divider
+    // Divider line
     doc
       .moveTo(margins.left, y)
       .lineTo(margins.left + contentWidth, y)
@@ -311,6 +354,27 @@ export const downloadApplicationPdf = async (
     // ── Personal Details ──
     y = checkPage(doc, y, 250);
     y = drawSectionHeader(doc, "Personal Details", y);
+
+    // Passport photo (top-right of section)
+    const photoWidth = 65;
+    const photoHeight = 80;
+
+    if (photoBuffer) {
+      const photoX = margins.left + contentWidth - photoWidth - 12;
+      const photoY = y + 4;
+
+      doc
+        .rect(photoX - 1, photoY - 1, photoWidth + 2, photoHeight + 2)
+        .strokeColor(COLORS.border)
+        .lineWidth(0.5)
+        .stroke();
+
+      doc.image(photoBuffer, photoX, photoY, {
+        fit: [photoWidth, photoHeight],
+        align: "center",
+        valign: "center",
+      });
+    }
 
     const personalRows: RowItem[] = [
       { label: "Applicant Name", value: sd.name || "—" },
@@ -326,7 +390,7 @@ export const downloadApplicationPdf = async (
       },
       {
         label: "Are you a resident of MAC notified village area?",
-        value: isOutside ? "Yes" : "No",
+        value: isResident ? "Yes" : "No",
       },
       { label: "Address", value: address || "—" },
       { label: "Aadhaar Number", value: sd.aadhaar_number || "—" },
@@ -337,6 +401,12 @@ export const downloadApplicationPdf = async (
     for (const row of personalRows) {
       y = checkPage(doc, y);
       y = drawRow(doc, row, y, pageWidth, margins);
+    }
+
+    // Ensure y clears the photo
+    if (photoBuffer) {
+      const photoBottomY = y - personalRows.length * 32 + photoHeight + 12;
+      y = Math.max(y, photoBottomY);
     }
 
     y += 16;

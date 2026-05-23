@@ -55,9 +55,9 @@ const Student = sequelize.define(
     },
 
     // ── Address ──
-    is_outside_mac_area: {
+    is_resident_of_mac_area: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false,
+      defaultValue: true,
     },
     state_id: {
       type: DataTypes.INTEGER,

@@ -98,10 +98,10 @@ const Application = sequelize.define(
     },
 
     // ── Form Progress ──
-    completed_steps: {
-      type: DataTypes.JSON,
-      defaultValue: [],
-      comment: "Array of completed step numbers, e.g. [1, 2, 3]",
+    completed_step: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Highest completed step number",
     },
 
     // ── Application Status ──

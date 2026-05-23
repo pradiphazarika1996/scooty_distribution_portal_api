@@ -1,3 +1,5 @@
+export const TOTAL_FORM_STEPS = 3;
+
 // GENDER
 export const GENDER = Object.freeze({
   MALE: 1,
