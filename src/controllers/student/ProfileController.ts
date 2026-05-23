@@ -42,7 +42,7 @@ const REQUIRED_FIELDS = [
   "date_of_birth",
   "caste_id",
   "aadhaar_number",
-  "district_id",
+  "phone",
   "pin_code",
 ];
 
@@ -83,8 +83,11 @@ export const getProfile = async (
     }
 
     return res.json(studentData);
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("getProfile error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to get profile";
+    return res.status(status).send({ status: false, message });
   }
 };
 
@@ -152,8 +155,11 @@ export const updateProfile = async (
       message: "Profile updated successfully",
       student: updated,
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("updateProfile error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to update profile";
+    return res.status(status).send({ status: false, message });
   }
 };
 
@@ -239,8 +245,11 @@ export const uploadAvatar = async (
       message: "Avatar updated",
       avatar_url: avatarUrl,
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("uploadAvatar error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to upload avatar";
+    return res.status(status).send({ status: false, message });
   }
 };
 
@@ -290,7 +299,10 @@ export const removeAvatar = async (
     await student.update({ avatar_url: null });
 
     return res.json({ message: "Avatar removed" });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("removeAvatar error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to remove avatar";
+    return res.status(status).send({ status: false, message });
   }
 };
