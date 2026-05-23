@@ -1,4 +1,3 @@
-import Application from "../../models/student/Application.model";
 import { EXAM_TYPE } from "./student";
 
 /**
@@ -16,17 +15,13 @@ const EXAM_PREFIX: Record<number, string> = {
 
 export const generateApplicationNumber = async (
   examId: number,
+  applicationId: number,
 ): Promise<string> => {
   const year = new Date().getFullYear();
   const prefix = EXAM_PREFIX[examId] || "SCH";
 
-  const count = await Application.count({
-    where: { exam_id: examId },
-  });
-
-  const serial = String(count + 1).padStart(5, "0");
-  return `MAC/${prefix}/${year}/${serial}`;
-  // e.g. MAC/HSLC/2026/00001
+  return `MAC/${prefix}/${year}/${applicationId}`;
+  // e.g. MAC/HSLC/2026/1
 };
 
 export const ALLOWED_PERSONAL_FIELDS = [

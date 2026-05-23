@@ -1,9 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import httpError from "http-errors";
 import { ACCESS_TOKEN_COOKIE_VALIDITY } from "../../helpers/constants";
+import { REDIS_TTL } from "../../helpers/redisKeys";
+import { canRequestOtp } from "../../helpers/redisUtils";
 import { AccountStatus, UserType } from "../../helpers/status";
 import jwt from "../../middleware/jwt";
 import Student from "../../models/student/Student.model";
+import { getRedis, setRedis } from "../../services/RedisService";
 import { IStudent } from "../../types/models";
 import { sendOtpMessage, verifyOtpCode } from "./authService";
 
@@ -23,9 +26,9 @@ export default {
   getStudent: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const studentId = req.payload.id;
-      // const cachedGetStudent = await getRedis(getStudentAccountKey(studentId));
-      // if (cachedGetStudent)
-      //   return res.status(200).send({ status: true, data: cachedGetStudent });
+      const cachedGetStudent = await getRedis(getStudentAccountKey(studentId));
+      if (cachedGetStudent)
+        return res.status(200).send({ status: true, data: cachedGetStudent });
 
       const student = await Student.findOne({
         attributes: ["id", "name", "phone", "role_id", "is_active"],
@@ -42,11 +45,11 @@ export default {
         ...studentData,
         role: UserType.STUDENT,
       };
-      // await setRedis(
-      //   getStudentAccountKey(studentData.id),
-      //   data,
-      //   REDIS_TTL.USER_LIMIT,
-      // );
+      await setRedis(
+        getStudentAccountKey(studentData.id),
+        data,
+        REDIS_TTL.USER_LIMIT,
+      );
       res.status(200).send({
         status: true,
         data,
@@ -65,9 +68,9 @@ export default {
 
       if (!payload.phone) throw httpError.BadRequest("Phone is required");
 
-      // const canRequest = await canRequestOtp(payload.phone);
-      // if (!canRequest)
-      //   throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
+      const canRequest = await canRequestOtp(payload.phone);
+      if (!canRequest)
+        throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
 
       const existing: any = await Student.findOne({
         where: { phone: payload.phone },
@@ -75,8 +78,6 @@ export default {
 
       if (existing)
         throw httpError.Forbidden("This number is already been registered");
-
-      // await setRedis(getStudentAccountKey(payload.phone), payload, 3600);
 
       const verification: any = await sendOtpMessage(
         payload.phone,
@@ -111,12 +112,7 @@ export default {
 
       const phone = studentData.phone;
       await verifyOtpCode(phone, otp);
-      // const draftUserData = await getRedis<IUser>(getStudentAccountKey(phone));
-      // if (!draftUserData) {
-      //   throw httpError.BadRequest(
-      //     "No registration data found for this phone number",
-      //   );
-      // }
+
       const student: any = await Student.create({
         ...studentData,
         role_id: UserType.STUDENT,
@@ -166,15 +162,20 @@ export default {
 
       if (!phone) throw httpError.BadRequest("Phone number is required");
       if (!otpChannelId) throw httpError.BadRequest("OTP channel is required");
-      // const canRequest = await canRequestOtp(phone);
-      // if (!canRequest)
-      //   throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
+
+      const canRequest = await canRequestOtp(phone);
+      if (!canRequest)
+        throw httpError.TooManyRequests("Maximum OTP sending attempts reached");
 
       const existing: any = await Student.findOne({
         where: { phone: phone },
       });
 
-      if (!existing || existing.account_status !== AccountStatus.ACTIVE)
+      if (
+        !existing ||
+        !existing.is_phone_verified ||
+        existing.account_status !== AccountStatus.ACTIVE
+      )
         throw httpError.Unauthorized();
 
       const verification: any = await sendOtpMessage(

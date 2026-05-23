@@ -3,7 +3,10 @@ import {
   APPLICATION_STATUS,
   generateApplicationNumber,
 } from "../../helpers/students/application";
-import { getCurrentAcademicYear } from "../../helpers/students/student";
+import {
+  getCurrentAcademicYear,
+  TOTAL_FORM_STEPS,
+} from "../../helpers/students/student";
 import Application from "../../models/student/Application.model";
 import Student from "../../models/student/Student.model";
 import {
@@ -27,41 +30,11 @@ export const getEligibility = async (
       existingApplications: result.existingApplications,
       draftApplication: result.draftApplication ?? null,
     });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getApplication = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const studentId = req.payload.id;
-
-    // Prefer draft, fallback to latest
-    let application = await Application.findOne({
-      where: {
-        student_id: studentId,
-        application_status: APPLICATION_STATUS.DRAFT,
-      },
-    });
-
-    if (!application) {
-      application = await Application.findOne({
-        where: { student_id: studentId },
-        order: [["created_at", "DESC"]],
-      });
-    }
-
-    const student = await Student.findByPk(studentId, {
-      attributes: { exclude: ["password"] },
-    });
-
-    return res.json({ application, student });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("getEligibility error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to get eligibility";
+    return res.status(status).send({ status: false, message });
   }
 };
 
@@ -107,8 +80,47 @@ export const createDraft = async (
       message: "Draft created",
       application,
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("createDraft error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to create draft application";
+    return res.status(status).send({ status: false, message });
+  }
+};
+
+export const getApplication = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const studentId = req.payload.id;
+
+    // Prefer draft, fallback to latest
+    let application = await Application.findOne({
+      where: {
+        student_id: studentId,
+        application_status: APPLICATION_STATUS.DRAFT,
+      },
+    });
+
+    if (!application) {
+      application = await Application.findOne({
+        where: { student_id: studentId },
+        order: [["created_at", "DESC"]],
+      });
+    }
+
+    const student = await Student.findByPk(studentId, {
+      attributes: { exclude: ["password"] },
+    });
+
+    return res.json({ application, student });
+  } catch (error: any) {
+    console.error("getApplication error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to get application";
+    return res.status(status).send({ status: false, message });
   }
 };
 
@@ -133,6 +145,10 @@ export const saveStep = async (
       return res.status(404).json({ message: "No draft application found" });
     }
 
+    if (step < 1 || step > TOTAL_FORM_STEPS) {
+      return res.status(400).json({ message: "Invalid step" });
+    }
+
     // Step 1: Personal details → save to Student
     if (data.student) {
       await Student.update(data.student, {
@@ -147,33 +163,23 @@ export const saveStep = async (
       });
     }
 
-    // Step 3: Documents → handled by separate upload endpoint
+    // Track highest completed step
+    const currentStep = application.getDataValue("completed_step") || 0;
+    const newStep = Math.max(currentStep, step);
 
-    // Track completed steps
-    let completedSteps: any = application.getDataValue("completed_steps") || [];
-    while (typeof completedSteps === "string") {
-      try {
-        completedSteps = JSON.parse(completedSteps);
-      } catch {
-        completedSteps = [];
-        break;
-      }
-    }
-    if (!Array.isArray(completedSteps)) completedSteps = [];
-
-    if (!completedSteps.includes(step)) {
-      completedSteps.push(step);
-      await application.update({
-        completed_steps: completedSteps,
-      });
+    if (newStep > currentStep) {
+      await application.update({ completed_step: newStep });
     }
 
     return res.json({
       message: "Step saved",
-      completedSteps,
+      completed_step: newStep,
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("saveStep error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to save step";
+    return res.status(status).send({ status: false, message });
   }
 };
 
@@ -196,21 +202,15 @@ export const submitApplication = async (
       return res.status(404).json({ message: "No draft application found" });
     }
 
-    // Validate all steps are completed
-    const rawSteps = application.getDataValue("completed_steps");
-    const completedSteps: number[] =
-      typeof rawSteps === "string" ? JSON.parse(rawSteps) : rawSteps || [];
-    const requiredSteps = [1, 2, 3];
-    const missingSteps = requiredSteps.filter(
-      (s) => !completedSteps.includes(s),
-    );
+    const completedStep = application.getDataValue("completed_step") || 0;
 
-    // if (missingSteps.length > 0) {
-    //   return res.status(400).json({
-    //     message: "Please complete all steps before submitting.",
-    //     missingSteps,
-    //   });
-    // }
+    if (completedStep < TOTAL_FORM_STEPS) {
+      return res.status(400).json({
+        message: "Please complete all steps before submitting.",
+        completed_step: completedStep,
+        required_steps: TOTAL_FORM_STEPS,
+      });
+    }
 
     // Snapshot student profile at submission
     const student = await Student.findByPk(studentId, {
@@ -219,6 +219,7 @@ export const submitApplication = async (
 
     const applicationNumber = await generateApplicationNumber(
       application.getDataValue("exam_id"),
+      application.getDataValue("id"),
     );
 
     await application.update({
@@ -234,7 +235,10 @@ export const submitApplication = async (
       message: "Application submitted successfully",
       application,
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("submitApplication error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to submit application";
+    return res.status(status).send({ status: false, message });
   }
 };

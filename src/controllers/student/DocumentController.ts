@@ -12,10 +12,6 @@ import Document from "../../models/student/Document.model";
 import Student from "../../models/student/Student.model";
 import s3 from "../../services/AwsS3Client";
 
-/**
- * POST /api/student/application/documents
- * Upload a single document for the draft application.
- */
 export const uploadDocument = async (
   req: Request,
   res: Response,
@@ -94,15 +90,14 @@ export const uploadDocument = async (
       message: "Document uploaded successfully",
       document,
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("uploadDocument error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to upload document";
+    return res.status(status).send({ status: false, message });
   }
 };
 
-/**
- * GET /api/student/application/documents
- * Get all documents for the current draft/latest application.
- */
 export const getDocuments = async (
   req: Request,
   res: Response,
@@ -136,15 +131,14 @@ export const getDocuments = async (
     });
 
     return res.json({ documents });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("getDocuments error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to get documents";
+    return res.status(status).send({ status: false, message });
   }
 };
 
-/**
- * DELETE /api/student/application/documents/:docType
- * Delete a specific document by type from the draft application.
- */
 export const deleteDocument = async (
   req: Request,
   res: Response,
@@ -196,8 +190,11 @@ export const deleteDocument = async (
     }
 
     return res.json({ message: "Document deleted successfully" });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("deleteDocument error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to delete document";
+    return res.status(status).send({ status: false, message });
   }
 };
 
@@ -227,7 +224,10 @@ export const getDocumentUrl = async (
     const url = await getSignedUrl(s3 as any, command, { expiresIn: 300 });
 
     return res.json({ status: true, url });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error("getDocumentUrl error:", error);
+    const status = error.status ?? 500;
+    const message = "Failed to get document URL";
+    return res.status(status).send({ status: false, message });
   }
 };
