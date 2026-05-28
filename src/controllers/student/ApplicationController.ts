@@ -149,9 +149,10 @@ export const saveStep = async (
       return res.status(400).json({ message: "Invalid step" });
     }
 
-    // Step 1: Personal details → save to Student
+    // Step 1: Personal details → save to Student (exclude phone)
     if (data.student) {
-      await Student.update(data.student, {
+      const { phone, ...studentData } = data.student;
+      await Student.update(studentData, {
         where: { id: studentId },
       });
     }
