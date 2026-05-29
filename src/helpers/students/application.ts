@@ -79,6 +79,7 @@ export const DOCUMENT_TYPES = Object.freeze({
   BANK_PASS_BOOK: 6,
   CASTE_CERTIFICATE: 7,
   PASSPORT: 8,
+  INCOME_PROOF: 9,
 });
 
 export const DOCUMENT_TYPES_ARRAY = [
@@ -129,6 +130,12 @@ export const DOCUMENT_TYPES_ARRAY = [
     label: "Passport Photo",
     description: "Scanned copy of passport photograph",
     required: true,
+  },
+  {
+    key: DOCUMENT_TYPES.INCOME_PROOF,
+    label: "Income Proof",
+    description: "Income Proof (Income Certificate / BPL Card / Ration Card)",
+    required: false,
   },
 ] as const;
 
@@ -216,3 +223,10 @@ export function getStateName(value: number) {
   const option = STATE_OPTIONS.find((opt) => opt.value == value);
   return option ? option.label : "Unknown State";
 }
+
+// Deadline: 25 June 2026, 5:00 PM IST (UTC+5:30 = 11:30 AM UTC)
+export const APPLICATION_DEADLINE = new Date("2026-06-25T11:30:00.000Z");
+
+export const isAfterDeadline = (): boolean => {
+  return new Date() > APPLICATION_DEADLINE;
+};
