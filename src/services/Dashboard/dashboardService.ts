@@ -93,19 +93,30 @@ export const getRecentApplications = async (limit = 5) => {
   });
 };
 
-export const getExamSplitData = async () => {
-  // Exclude drafts — only count applications that have been actively submitted
-  const activeFilter = {
-    application_status: { [Op.ne]: APPLICATION_STATUS.DRAFT },
-  };
+// dashboardService.ts — replace getExamSplitData
 
+export const getExamSplitData = async () => {
+  // Count ALL applications per exam type regardless of status
   const [hslc, hs] = await Promise.all([
-    Application.count({ where: { ...activeFilter, exam_id: EXAM_TYPE.HSLC } }),
-    Application.count({ where: { ...activeFilter, exam_id: EXAM_TYPE.HS } }),
+    Application.count({ where: { exam_id: EXAM_TYPE.HSLC } }),
+    Application.count({ where: { exam_id: EXAM_TYPE.HS } }),
   ]);
 
   return { hslc, hs };
 };
+// export const getExamSplitData = async () => {
+//   // Exclude drafts — only count applications that have been actively submitted
+//   const activeFilter = {
+//     application_status: { [Op.ne]: APPLICATION_STATUS.APPROVED },
+//   };
+
+//   const [hslc, hs] = await Promise.all([
+//     Application.count({ where: { ...activeFilter, exam_id: EXAM_TYPE.HSLC } }),
+//     Application.count({ where: { ...activeFilter, exam_id: EXAM_TYPE.HS } }),
+//   ]);
+
+//   return { hslc, hs };
+// };
 // export const getDistrictChartData = async () => {
 //   const results = (await Student.findAll({
 //     attributes: [
