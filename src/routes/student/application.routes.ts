@@ -3,6 +3,7 @@ import {
   createDraft,
   getApplication,
   getEligibility,
+  reopenApplication,
   saveStep,
   submitApplication,
 } from "../../controllers/student/ApplicationController";
@@ -22,6 +23,7 @@ router.get("/eligibility", getEligibility);
 router.post("/create-draft", createDraft);
 router.put("/save-step", saveStep);
 router.post("/submit", submitApplication);
+router.post("/reopen", reopenApplication);
 
 // Documents
 router.get("/documents", getDocuments);

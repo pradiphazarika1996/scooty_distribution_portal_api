@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import {
   APPLICATION_STATUS,
   generateApplicationNumber,
+  isAfterDeadline,
 } from "../../helpers/students/application";
 import {
   getCurrentAcademicYear,
@@ -73,7 +74,7 @@ export const createDraft = async (
       exam_id: examId,
       academic_year: getCurrentAcademicYear(),
       application_status: APPLICATION_STATUS.DRAFT,
-      completed_steps: [],
+      completed_steps: 0,
     });
 
     return res.status(201).json({
@@ -133,6 +134,13 @@ export const saveStep = async (
     const studentId = req.payload.id;
     const { step, data } = req.body;
 
+    if (isAfterDeadline()) {
+      return res.status(403).json({
+        message:
+          "The application window has closed. No edits are allowed after 25 June 2026, 5:00 PM IST.",
+      });
+    }
+
     // Find the draft application
     const application = await Application.findOne({
       where: {
@@ -149,9 +157,10 @@ export const saveStep = async (
       return res.status(400).json({ message: "Invalid step" });
     }
 
-    // Step 1: Personal details → save to Student
+    // Step 1: Personal details → save to Student (exclude phone)
     if (data.student) {
-      await Student.update(data.student, {
+      const { phone, ...studentData } = data.student;
+      await Student.update(studentData, {
         where: { id: studentId },
       });
     }
@@ -191,6 +200,13 @@ export const submitApplication = async (
   try {
     const studentId = req.payload.id;
 
+    if (isAfterDeadline()) {
+      return res.status(403).json({
+        message:
+          "The application window has closed. No edits are allowed after 25 June 2026, 5:00 PM IST.",
+      });
+    }
+
     const application = await Application.findOne({
       where: {
         student_id: studentId,
@@ -217,10 +233,13 @@ export const submitApplication = async (
       attributes: { exclude: ["password"] },
     });
 
-    const applicationNumber = await generateApplicationNumber(
-      application.getDataValue("exam_id"),
-      application.getDataValue("id"),
-    );
+    const existingNumber = application.getDataValue("application_number");
+    const applicationNumber =
+      existingNumber ||
+      (await generateApplicationNumber(
+        application.getDataValue("exam_id"),
+        application.getDataValue("id"),
+      ));
 
     await application.update({
       application_number: applicationNumber,
@@ -240,5 +259,51 @@ export const submitApplication = async (
     const status = error.status ?? 500;
     const message = "Failed to submit application";
     return res.status(status).send({ status: false, message });
+  }
+};
+
+export const reopenApplication = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (isAfterDeadline()) {
+      return res.status(403).json({
+        message:
+          "The application window has closed. No edits are allowed after 25 June 2026, 5:00 PM IST.",
+      });
+    }
+
+    const studentId = req.payload.id;
+
+    const application = await Application.findOne({
+      where: {
+        student_id: studentId,
+        application_status: APPLICATION_STATUS.SUBMITTED,
+      },
+    });
+
+    if (!application) {
+      return res
+        .status(404)
+        .json({ message: "No submitted application found to edit." });
+    }
+
+    await application.update({
+      application_status: APPLICATION_STATUS.DRAFT,
+      is_locked: false,
+      application_number: application.getDataValue("application_number"),
+    });
+
+    return res.json({
+      message: "Application reopened for editing.",
+      application,
+    });
+  } catch (error: any) {
+    console.error("reopenApplication error:", error);
+    return res
+      .status(error.status ?? 500)
+      .send({ status: false, message: "Failed to reopen application." });
   }
 };
