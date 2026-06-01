@@ -4,6 +4,7 @@ import {
   getExamSplitData,
   getRecentApplications,
   getStatCardData,
+  getTrendData,
 } from "../../../services/Dashboard/dashboardService";
 
 export default {
@@ -51,6 +52,19 @@ export default {
   ): Promise<void> => {
     try {
       const data = await getDistrictChartData();
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  getTrend: async (
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const data = await getTrendData();
       res.json({ success: true, data });
     } catch (err) {
       next(err);

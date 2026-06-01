@@ -1,19 +1,7 @@
 import { Op, Sequelize, WhereOptions } from "sequelize";
-// import {
-//   APPLICATION_STATUS,
-//   MARKING_SYSTEM,
-//   getStateName,
-//   APPLICATION_STATUS_LABELS,
-// } from "../../helpers/students/application";
 import District from "../../models/masters/District.model";
 import Application from "../../models/student/Application.model";
 import Student from "../../models/student/Student.model";
-// import {
-//   getBoardName,
-//   getCasteName,
-//   getExamTypeName,
-//   getGenderName,
-// } from "../../helpers/students/student";
 import {
   APPLICATION_STATUS,
   APPLICATION_STATUS_LABELS,
@@ -26,10 +14,6 @@ import {
   getExamTypeName,
   getGenderName,
 } from "../../helpers/students/student";
-
-// ─────────────────────────────────────────────────────────────
-// View Layer Maps
-// ─────────────────────────────────────────────────────────────
 
 const EXAM_LABEL: Record<number, string> = {
   1: "HSLC",
@@ -72,9 +56,6 @@ const TAB_STATUSES: Record<string, number[]> = {
   rejected: [APPLICATION_STATUS.REJECTED],
 };
 
-// ─────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────
 
 export interface GetApplicationsParams {
   search?: string;
@@ -89,9 +70,6 @@ export interface GetApplicationsParams {
   limit?: number;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 
 function getInitials(name: string): string {
   return (name ?? "")
@@ -130,10 +108,6 @@ function buildLastActionDate(value: string): Date | null {
 
   return null;
 }
-
-// ─────────────────────────────────────────────────────────────
-// SAFE DATE FORMATTER (FIXED)
-// ─────────────────────────────────────────────────────────────
 
 function formatDate(dateValue: any): string {
   if (!dateValue) return "—";
