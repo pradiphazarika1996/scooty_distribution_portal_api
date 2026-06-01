@@ -38,6 +38,30 @@ export const getStatCardData = async () => {
   return { total, approved, rejected, pending, approvedPercentage };
 };
 
+export const getTrendData = async () => {
+  const year = new Date().getFullYear();
+
+  // May 25 → June 25 split into 5 weeks
+  const weeks = [
+    { label: "Week 1", start: new Date(year, 4, 25), end: new Date(year, 4, 31, 23, 59, 59, 999) },
+    { label: "Week 2", start: new Date(year, 5, 1),  end: new Date(year, 5, 7,  23, 59, 59, 999) },
+    { label: "Week 3", start: new Date(year, 5, 8),  end: new Date(year, 5, 14, 23, 59, 59, 999) },
+    { label: "Week 4", start: new Date(year, 5, 15), end: new Date(year, 5, 21, 23, 59, 59, 999) },
+    { label: "Week 5", start: new Date(year, 5, 22), end: new Date(year, 5, 25, 23, 59, 59, 999) },
+  ];
+
+  const results = await Promise.all(
+    weeks.map(async ({ label, start, end }) => {
+      const applications = await Application.count({
+        where: { submitted_at: { [Op.between]: [start, end] } },
+      });
+      return { month: label, applications };
+    }),
+  );
+
+  return results;
+};
+
 export const getRecentApplications = async (limit = 5) => {
   const rows = await Application.findAll({
     where: {
@@ -93,7 +117,6 @@ export const getRecentApplications = async (limit = 5) => {
   });
 };
 
-// dashboardService.ts — replace getExamSplitData
 
 export const getExamSplitData = async () => {
   // Count ALL applications per exam type regardless of status
@@ -104,65 +127,6 @@ export const getExamSplitData = async () => {
 
   return { hslc, hs };
 };
-// export const getExamSplitData = async () => {
-//   // Exclude drafts — only count applications that have been actively submitted
-//   const activeFilter = {
-//     application_status: { [Op.ne]: APPLICATION_STATUS.APPROVED },
-//   };
-
-//   const [hslc, hs] = await Promise.all([
-//     Application.count({ where: { ...activeFilter, exam_id: EXAM_TYPE.HSLC } }),
-//     Application.count({ where: { ...activeFilter, exam_id: EXAM_TYPE.HS } }),
-//   ]);
-
-//   return { hslc, hs };
-// };
-// export const getDistrictChartData = async () => {
-//   const results = (await Student.findAll({
-//     attributes: [
-//       "district_id",
-//       // ✅ alias matches what we read below: r.appCount
-//       [Sequelize.fn("COUNT", Sequelize.col("applications.id")), "appCount"],
-//     ],
-//     include: [
-//       {
-//         model: Application,
-//         as: "applications",
-//         attributes: [],
-//         required: true, // INNER JOIN — students must have at least one application
-//         // ✅ No where filter — drafts included so test data shows up
-//       },
-//     ],
-//     where: {
-//       district_id: { [Op.ne]: null }, // student must have a district selected
-//     },
-//     group: ["Student.district_id"],
-//     raw: true,
-//   })) as unknown as Array<{ district_id: string; appCount: string }>;
-
-//   if (!results.length) return [];
-
-//   // MySQL raw queries return numeric columns as strings — cast both sides
-//   const districtIds = results
-//     .map((r) => Number(r.district_id))
-//     .filter((id) => id > 0);
-
-//   const districts = (await District.findAll({
-//     where: { id: districtIds },
-//     attributes: ["id", "name"],
-//     raw: true,
-//   })) as unknown as Array<{ id: number; name: string }>;
-
-//   const districtMap = new Map(districts.map((d) => [Number(d.id), d.name]));
-
-//   return results
-//     .map((r) => ({
-//       district: districtMap.get(Number(r.district_id)) ?? "",
-//       count: Number(r.appCount),
-//     }))
-//     .filter((r) => r.district !== "")
-//     .sort((a, b) => b.count - a.count);
-// };
 
 export const getDistrictChartData = async () => {
   const results = (await Student.findAll({
@@ -210,3 +174,4 @@ export const getDistrictChartData = async () => {
     .filter((r) => r.district !== "")
     .sort((a, b) => b.count - a.count);
 };
+
