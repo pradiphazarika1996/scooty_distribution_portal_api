@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import httpError from "http-errors";
-import { UserType } from "../../../helpers/status";
+import { AccountStatus, UserType } from "../../../helpers/status";
 import User from "../../../models/User.model";
 
 export default {
@@ -99,7 +99,12 @@ export default {
   },
   addUser: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await User.create({...req.body, role:UserType.ADMIN}).catch((err) => {
+      const data = await User.create({
+        ...req.body,
+        role: UserType.ADMIN,
+        status: AccountStatus.ACTIVE,
+        is_active: true,
+      }).catch((err) => {
         throw httpError.InternalServerError(err);
       });
       if (!data) throw httpError.InternalServerError();
