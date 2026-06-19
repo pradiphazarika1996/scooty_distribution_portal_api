@@ -6,23 +6,49 @@ import {
   type GetApplicationsParams,
 } from "./applicationService";
 
+function formatDateDDMMYYYY(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+}
+
 // ── Column definitions ─────────────────────────────────────
+// Added: Bank Name, Branch, Account No., IFSC Code
 
 const COLUMNS = [
   { header: "Reference No.", key: "referenceNo", width: 18 },
   { header: "Name", key: "name", width: 22 },
   { header: "Phone", key: "phone", width: 14 },
   { header: "Exam", key: "exam", width: 8 },
-  { header: "Board", key: "board", width: 8 },
   { header: "Year", key: "year", width: 8 },
   { header: "Marks", key: "marks", width: 10 },
   { header: "Location", key: "location", width: 18 },
-  { header: "Sub-location", key: "subLocation", width: 18 },
   { header: "Applied Date", key: "appliedDate", width: 14 },
   { header: "Status", key: "status", width: 14 },
+  { header: "Bank Name", key: "bankName", width: 20 },
+  { header: "Branch", key: "branch", width: 16 },
+  { header: "Account No.", key: "accountNo", width: 16 },
+  { header: "IFSC Code", key: "ifscCode", width: 12 },
 ] as const;
-
-const PDF_COL_WIDTHS = [80, 100, 78, 38, 40, 35, 45, 90, 80, 65, 70];
+const PDF_COL_WIDTHS = [
+  70, // Reference No.
+  85, // Name
+  65, // Phone
+  32, // Exam
+  32, // Year
+  40, // Marks
+  70, // Location
+  65, // Applied Date
+  55, // Status
+  75, // Bank Name
+  65, // Branch
+  70, // Account No.
+  55, // IFSC Code
+];
 const TOTAL_W = PDF_COL_WIDTHS.reduce((a, b) => a + b, 0);
 const MARGIN_L = 30;
 const ROW_H = 18;
@@ -42,13 +68,15 @@ function toRow(app: any): string[] {
     app.applicant?.name ?? "—",
     app.applicant?.phone ?? "—",
     app.exam?.type ?? "—",
-    app.exam?.board ?? "—",
     String(app.exam?.year || "—"),
     app.percentage != null ? `${Number(app.percentage).toFixed(2)}%` : "—",
     app.location?.district ?? "—",
-    app.location?.subLocation ?? "—",
-    app.appliedDate ?? "—",
+    formatDateDDMMYYYY(app.appliedDate),
     STATUS_LABEL[app.status] ?? app.status ?? "—",
+    app.bankName ?? "—",
+    app.branchName ?? "—",
+    app.accountNo ?? "—",
+    app.ifscCode ?? "—",
   ];
 }
 
@@ -84,10 +112,6 @@ export async function exportToExcel(
     cell.border = { bottom: { style: "thin", color: { argb: "FFD1D5DB" } } };
   });
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-
-  // Fix 2: collect all data BEFORE writing headers.
-  // If the DB query fails, we send a proper 500 error instead
-  // of a corrupt/truncated file.
   try {
     let rowIndex = 0;
     for await (const batch of getApplicationsForExport(params)) {
@@ -114,7 +138,6 @@ export async function exportToExcel(
       }
     }
   } catch (err) {
-    // Headers not yet sent — safe to send error response
     if (!res.headersSent) {
       res
         .status(500)
@@ -122,8 +145,6 @@ export async function exportToExcel(
     }
     return;
   }
-
-  // Only write headers + stream after all data is confirmed ready
   res.setHeader(
     "Content-Type",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -143,9 +164,6 @@ export async function exportToPdf(
   res: Response,
 ): Promise<void> {
   const today = new Date().toISOString().split("T")[0];
-
-  // Fix 2: collect all rows before piping the PDF stream.
-  // This way, if the DB fails we can still send a proper error.
   const allRows: string[][] = [];
   try {
     for await (const batch of getApplicationsForExport(params)) {
@@ -159,8 +177,6 @@ export async function exportToPdf(
     }
     return;
   }
-
-  // All data ready — safe to start streaming
   const doc = new PDFDocument({
     size: "A4",
     layout: "landscape",
@@ -194,8 +210,6 @@ export async function exportToPdf(
 
   doc.end();
 }
-
-// ── PDF table helpers ──────────────────────────────────────
 
 function drawTableHeader(doc: PDFKit.PDFDocument, y: number): number {
   let x = MARGIN_L;

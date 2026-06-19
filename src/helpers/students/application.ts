@@ -211,6 +211,9 @@ export const STATES = Object.freeze({
   Lakshadweep: 35,
   Puducherry: 36,
 });
+// ── Add to existing utils/students/application.ts ────────
+// Same file/pattern as GENDER_OPTIONS, EXAM_OPTIONS, LAST_ACTION_OPTIONS.
+
 
 export const STATE_OPTIONS = Object.entries(STATES).map(([label, value]) => ({
   label: label

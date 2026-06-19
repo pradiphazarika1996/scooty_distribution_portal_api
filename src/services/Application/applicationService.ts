@@ -1,7 +1,4 @@
-import { Op, Sequelize, WhereOptions } from "sequelize";
-import District from "../../models/masters/District.model";
-import Application from "../../models/student/Application.model";
-import Student from "../../models/student/Student.model";
+import { Op, Sequelize, type WhereOptions } from "sequelize";
 import {
   APPLICATION_STATUS,
   APPLICATION_STATUS_LABELS,
@@ -14,48 +11,11 @@ import {
   getExamTypeName,
   getGenderName,
 } from "../../helpers/students/student";
+import District from "../../models/masters/District.model";
+import Application from "../../models/student/Application.model";
+import Student from "../../models/student/Student.model";
 
-const EXAM_LABEL: Record<number, string> = {
-  1: "HSLC",
-  2: "HS",
-};
-
-const BOARD_LABEL: Record<number, string> = {
-  1: "SEBA",
-  2: "CBSE",
-  3: "ICSE",
-  4: "Other",
-};
-
-const STATUS_MAP: Record<number, string> = {
-  [APPLICATION_STATUS.DRAFT]: "pending",
-  [APPLICATION_STATUS.SUBMITTED]: "submitted",
-  [APPLICATION_STATUS.PAYMENT_COMPLETED]: "pending",
-
-  [APPLICATION_STATUS.UNDER_REVIEW]: "under_scrutiny",
-  [APPLICATION_STATUS.QUERY_RAISED]: "under_scrutiny",
-
-  [APPLICATION_STATUS.APPROVED]: "approved",
-  [APPLICATION_STATUS.REJECTED]: "rejected",
-};
-
-const TAB_STATUSES: Record<string, number[]> = {
-  pending: [
-    APPLICATION_STATUS.DRAFT,
-    APPLICATION_STATUS.SUBMITTED,
-    APPLICATION_STATUS.PAYMENT_COMPLETED,
-  ],
-
-  under_scrutiny: [
-    APPLICATION_STATUS.UNDER_REVIEW,
-    APPLICATION_STATUS.QUERY_RAISED,
-  ],
-
-  approved: [APPLICATION_STATUS.APPROVED],
-
-  rejected: [APPLICATION_STATUS.REJECTED],
-};
-
+// ── Types ────────────────────────────────────────────────────
 
 export interface GetApplicationsParams {
   search?: string;
@@ -70,441 +30,300 @@ export interface GetApplicationsParams {
   limit?: number;
 }
 
-
-function getInitials(name: string): string {
-  return (name ?? "")
-    .split(" ")
-    .filter(Boolean)
-    .map((word: string) => word[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
+type DecisionResult =
+  | { ok: true; id: number; status: number }
+  | { ok: false; reason: "NOT_FOUND" }
+  | { ok: false; reason: "INVALID_STATUS"; currentStatus: number };
 
 function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, "\\$&");
+  return value.replace(/[%_\\]/g, (char) => `\\${char}`);
 }
 
-function buildLastActionDate(value: string): Date | null {
-  const now = new Date();
+const EXAM_ID_MAP: Record<string, number> = {
+  hslc: 1,
+  hs: 2,
+};
 
-  if (value === "today") {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 1);
-    return d;
-  }
+const STATUS_BUCKET_MAP: Record<number, string> = {
+  [APPLICATION_STATUS.DRAFT]: "pending",
+  [APPLICATION_STATUS.SUBMITTED]: "submitted",
+  [APPLICATION_STATUS.PAYMENT_COMPLETED]: "submitted",
+  [APPLICATION_STATUS.UNDER_REVIEW]: "under_scrutiny",
+  [APPLICATION_STATUS.QUERY_RAISED]: "under_scrutiny",
+  [APPLICATION_STATUS.APPROVED]: "approved",
+  [APPLICATION_STATUS.REJECTED]: "rejected",
+};
+async function resolveDistrictNames(
+  districtIds: number[],
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  if (districtIds.length === 0) return map;
 
-  if (value === "week") {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 7);
-    return d;
-  }
+  const districts = (await District.findAll({
+    where: { id: { [Op.in]: districtIds } },
+    attributes: ["id", "name"],
+    raw: true,
+  })) as unknown as { id: number; name: string }[];
 
-  if (value === "month") {
-    const d = new Date(now);
-    d.setMonth(d.getMonth() - 1);
-    return d;
-  }
-
-  return null;
+  districts.forEach((d) => map.set(d.id, d.name));
+  return map;
 }
 
-function formatDate(dateValue: any): string {
-  if (!dateValue) return "—";
-
-  const date = new Date(dateValue);
-
-  // Invalid Date check
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toISOString().split("T")[0];
-}
-
-// ─────────────────────────────────────────────────────────────
-// Query Builder
-// ─────────────────────────────────────────────────────────────
-
-function buildQuery(params: GetApplicationsParams) {
-  const {
-    search = "",
-    remarksSearch = "",
-    applicantType = "all",
-    district = "all",
-    exam = "all",
-    gender = "all",
-    lastAction = "all",
-    activeTab = "all",
-  } = params;
-
-  // ─────────────────────────────────────────────────────────
-  // Application Conditions
-  // ─────────────────────────────────────────────────────────
-
+function buildApplicationWhereConditions(
+  params: GetApplicationsParams,
+): WhereOptions[] {
   const appConditions: WhereOptions[] = [];
 
-  // Exam Filter
-  if (exam !== "all") {
+  // ── Exam filter ──────────────────────────────────────────
+  if (params.exam && params.exam !== "all" && EXAM_ID_MAP[params.exam]) {
+    appConditions.push({ exam_id: EXAM_ID_MAP[params.exam] });
+  }
+  if (params.activeTab === "approved") {
+    appConditions.push({ application_status: APPLICATION_STATUS.APPROVED });
+  } else if (params.activeTab === "rejected") {
+    appConditions.push({ application_status: APPLICATION_STATUS.REJECTED });
+  }
+
+  // ── Reference number search (application-table field) ───
+  if (params.search) {
+    const escaped = escapeLike(params.search);
     appConditions.push({
-      exam_id: exam === "hslc" ? 1 : 2,
+      application_number: { [Op.like]: `%${escaped}%` },
     });
   }
 
-  // Status Tab Filter
-  if (activeTab !== "all" && TAB_STATUSES[activeTab]) {
-    appConditions.push({
-      application_status: {
-        [Op.in]: TAB_STATUSES[activeTab],
-      },
-    });
-  }
-
-  // Last Action Filter
-  const lastActionDate = buildLastActionDate(lastAction);
-
-  if (lastActionDate) {
-    appConditions.push({
-      status_updated_at: {
-        [Op.gte]: lastActionDate,
-      },
-    });
-  }
-
-  // Remarks Search
-  if (remarksSearch.trim()) {
-    const q = `%${escapeLike(remarksSearch.trim())}%`;
-
+  // ── Remarks search ────────────────────────────────────────
+  if (params.remarksSearch) {
+    const escaped = escapeLike(params.remarksSearch);
     appConditions.push({
       [Op.or]: [
-        {
-          review_remarks: {
-            [Op.like]: q,
-          },
-        },
-
-        {
-          approval_remarks: {
-            [Op.like]: q,
-          },
-        },
-
-        {
-          rejection_reason: {
-            [Op.like]: q,
-          },
-        },
+        { review_remarks: { [Op.like]: `%${escaped}%` } },
+        { approval_remarks: { [Op.like]: `%${escaped}%` } },
+        { rejection_reason: { [Op.like]: `%${escaped}%` } },
       ],
     } as WhereOptions);
   }
 
-  // Global Search
-  if (search.trim()) {
-    const q = `%${escapeLike(search.trim())}%`;
+  // ── Last action date range ───────────────────────────────
+  if (params.lastAction && params.lastAction !== "all") {
+    const now = new Date();
+    let from: Date | null = null;
 
-    appConditions.push({
-      [Op.or]: [
-        {
-          application_number: {
-            [Op.like]: q,
-          },
-        },
+    if (params.lastAction === "today") {
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (params.lastAction === "week") {
+      from = new Date(now);
+      from.setDate(now.getDate() - 7);
+    } else if (params.lastAction === "month") {
+      from = new Date(now);
+      from.setMonth(now.getMonth() - 1);
+    }
 
-        Sequelize.where(Sequelize.col("student.name"), {
-          [Op.like]: q,
-        }),
-
-        Sequelize.where(Sequelize.col("student.phone"), {
-          [Op.like]: q,
-        }),
-      ],
-    } as WhereOptions);
+    if (from) {
+      appConditions.push({ status_updated_at: { [Op.gte]: from } });
+    }
   }
 
-  const appWhere: WhereOptions =
-    appConditions.length === 0
-      ? {}
-      : appConditions.length === 1
-        ? appConditions[0]
-        : {
-            [Op.and]: appConditions,
-          };
-
-  // ─────────────────────────────────────────────────────────
-  // Student Conditions
-  // ─────────────────────────────────────────────────────────
-
-  const studentWhere: Record<string, any> = {};
-
-  if (district !== "all") {
-    studentWhere.district_id = Number(district);
-  }
-
-  if (gender !== "all") {
-    studentWhere.gender_id = Number(gender);
-  }
-
-  if (applicantType === "within_mac") {
-    studentWhere.is_resident_of_mac_area = true;
-  }
-
-  if (applicantType === "outside_mac") {
-    studentWhere.is_resident_of_mac_area = false;
-  }
-
-  const hasStudentFilter =
-    Object.keys(studentWhere).length > 0 || search.trim().length > 0;
-
-  return {
-    appWhere,
-
-    studentInclude: {
-      model: Student,
-      as: "student",
-
-      attributes: [
-        "name",
-        "phone",
-        "is_resident_of_mac_area",
-        "district_id",
-        "state_id",
-        "city",
-        "panchayat_name",
-        "municipal_area",
-        "other_village_name",
-      ],
-
-      where: Object.keys(studentWhere).length > 0 ? studentWhere : undefined,
-
-      required: hasStudentFilter,
-    },
-  };
+  return appConditions;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Resolve District Names
-// ─────────────────────────────────────────────────────────────
+function buildStudentWhereConditions(
+  params: GetApplicationsParams,
+): WhereOptions[] {
+  const studentConditions: WhereOptions[] = [];
 
-async function resolveDistrictNames(rows: any[]): Promise<Map<number, string>> {
+  if (params.gender && params.gender !== "all") {
+    studentConditions.push({ gender_id: Number(params.gender) });
+  }
+
+  if (params.applicantType === "within_mac") {
+    studentConditions.push({ is_resident_of_mac_area: true });
+  } else if (params.applicantType === "outside_mac") {
+    studentConditions.push({ is_resident_of_mac_area: false });
+  }
+
+  if (params.district && params.district !== "all") {
+    studentConditions.push({ district_id: Number(params.district) });
+  }
+
+  if (params.search) {
+    const escaped = escapeLike(params.search);
+    studentConditions.push({
+      [Op.or]: [
+        Sequelize.where(Sequelize.col("student.name"), {
+          [Op.like]: `%${escaped}%`,
+        }),
+        Sequelize.where(Sequelize.col("student.phone"), {
+          [Op.like]: `%${escaped}%`,
+        }),
+        Sequelize.where(Sequelize.col("student.email"), {
+          [Op.like]: `%${escaped}%`,
+        }),
+      ],
+    } as WhereOptions);
+  }
+
+  return studentConditions;
+}
+
+// ── getApplications — table list ────────────────────────────
+
+export const getApplications = async (params: GetApplicationsParams) => {
+  const page = params.page ?? 1;
+  const limit = params.limit ?? 15;
+  const offset = (page - 1) * limit;
+
+  const appConditions = buildApplicationWhereConditions(params);
+  const studentConditions = buildStudentWhereConditions(params);
+
+  const { rows, count } = await Application.findAndCountAll({
+    where: appConditions.length ? { [Op.and]: appConditions } : undefined,
+    include: [
+      {
+        model: Student,
+        as: "student",
+        attributes: [
+          "id",
+          "name",
+          "phone",
+          "district_id",
+          "is_resident_of_mac_area",
+        ],
+        where: studentConditions.length
+          ? { [Op.and]: studentConditions }
+          : undefined,
+        required: true,
+      },
+    ],
+    limit,
+    offset,
+    order: [["created_at", "DESC"]],
+  });
+
+  // Batch-resolve district names — avoids N+1 queries
   const districtIds = [
     ...new Set(
       rows
-        .map((row) => row.student?.district_id)
-        .filter(Boolean)
-        .map(Number),
+        .map((r: any) => r.student?.district_id)
+        .filter((id: number | undefined): id is number => !!id),
     ),
   ];
+  const districtMap = await resolveDistrictNames(districtIds);
 
-  const districtMap = new Map<number, string>();
-
-  if (!districtIds.length) {
-    return districtMap;
-  }
-
-  const districts = (await District.findAll({
-    where: {
-      id: districtIds,
-    },
-
-    attributes: ["id", "name"],
-
-    raw: true,
-  })) as unknown as Array<{
-    id: number;
-    name: string;
-  }>;
-
-  districts.forEach((district) => {
-    districtMap.set(Number(district.id), district.name);
-  });
-
-  return districtMap;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Shape Row
-// ─────────────────────────────────────────────────────────────
-
-function shapeRow(app: Record<string, any>, districtMap: Map<number, string>) {
-  const student = app.student ?? {};
-
-  const withinMAC = student.is_resident_of_mac_area !== false;
-
-  const percentage =
-    app.marking_system === MARKING_SYSTEM.CGPA
-      ? Number(app.cgpa ?? 0)
-      : Number(app.percentage_of_marks ?? 0);
-
-  return {
-    id: String(app.id),
-
-    referenceNo: app.application_number ?? `APP-${app.id}`,
-
-    applicant: {
-      name: student.name ?? "—",
-
-      initials: getInitials(student.name ?? ""),
-
-      phone: student.phone ?? "—",
-    },
-
-    exam: {
-      type: EXAM_LABEL[app.exam_id] ?? "—",
-
-      board: BOARD_LABEL[app.board_id] ?? "—",
-
-      year: Number(app.year_of_passing) || 0,
-    },
-
-    percentage,
-
-    location: {
-      district: withinMAC
-        ? (districtMap.get(Number(student.district_id)) ?? "—")
-        : getStateName(Number(student.state_id)),
-
-      subLocation: withinMAC
-        ? student.other_village_name ||
-          student.panchayat_name ||
-          student.municipal_area ||
-          ""
-        : (student.city ?? ""),
-
-      isOutsideMAC: !withinMAC,
-    },
-
-    // ─────────────────────────────────────────────────────
-    // SAFE DATE FIX
-    // ─────────────────────────────────────────────────────
-
-    appliedDate: formatDate(app.submitted_at || app.created_at),
-
-    status: STATUS_MAP[app.application_status] ?? "pending",
-  };
-}
-
-// ─────────────────────────────────────────────────────────────
-// Get Applications
-// ─────────────────────────────────────────────────────────────
-
-export const getApplications = async (params: GetApplicationsParams = {}) => {
-  const page = params.page ?? 1;
-  const limit = params.limit ?? 15;
-
-  const { appWhere, studentInclude } = buildQuery(params);
-
-  const { rows, count } = await Application.findAndCountAll({
-    where: appWhere,
-
-    include: [studentInclude],
-
-    order: [["created_at", "DESC"]],
-
-    limit,
-
-    offset: (page - 1) * limit,
-
-    distinct: true,
-
-    subQuery: false,
-  });
-
-  if (!rows.length) {
+  const applications = rows.map((row: any) => {
+    const app = row.toJSON();
     return {
-      applications: [],
-      total: count,
-      page,
-      limit,
-      totalPages: 0,
+      id: app.id,
+      referenceNo: app.application_number ?? `APP-${app.id}`,
+      applicant: {
+        name: app.student?.name ?? null,
+        phone: app.student?.phone ?? null,
+      },
+      exam: {
+        type: getExamTypeName(app.exam_id),
+        year: app.year_of_passing,
+      },
+      percentage:
+        app.percentage_of_marks != null
+          ? Number(app.percentage_of_marks)
+          : null,
+      location: {
+        district: app.student?.district_id
+          ? (districtMap.get(app.student.district_id) ?? null)
+          : null,
+      },
+      appliedDate: app.submitted_at,
+      status: STATUS_BUCKET_MAP[app.application_status] ?? "pending",
     };
-  }
+  });
 
-  const plainRows = rows.map((row) => row.toJSON()) as Record<string, any>[];
-
-  const districtMap = await resolveDistrictNames(plainRows);
-
-  const applications = plainRows.map((app) => shapeRow(app, districtMap));
-
-  return {
-    applications,
-
-    total: count,
-
-    page,
-
-    limit,
-
-    totalPages: Math.ceil(count / limit),
-  };
+  return { applications, total: count, page, limit };
 };
 
-// ─────────────────────────────────────────────────────────────
-// Export Applications
-// ─────────────────────────────────────────────────────────────
-
 export async function* getApplicationsForExport(
-  params: Omit<GetApplicationsParams, "page" | "limit">,
-) {
+  params: GetApplicationsParams,
+): AsyncGenerator<any[], void, unknown> {
   const BATCH_SIZE = 500;
-
   let offset = 0;
 
-  const { appWhere, studentInclude } = buildQuery(params);
+  const appConditions = buildApplicationWhereConditions(params);
+  const studentConditions = buildStudentWhereConditions(params);
 
   while (true) {
     const rows = await Application.findAll({
-      where: appWhere,
-
-      include: [studentInclude],
-
-      order: [["created_at", "DESC"]],
-
+      where: appConditions.length ? { [Op.and]: appConditions } : undefined,
+      include: [
+        {
+          model: Student,
+          as: "student",
+          attributes: ["name", "phone", "district_id"],
+          where: studentConditions.length
+            ? { [Op.and]: studentConditions }
+            : undefined,
+          required: true,
+        },
+      ],
       limit: BATCH_SIZE,
-
       offset,
-
-      subQuery: false,
+      order: [["created_at", "DESC"]],
     });
 
-    if (!rows.length) {
-      break;
-    }
+    if (rows.length === 0) break;
 
-    const plainRows = rows.map((row) => row.toJSON()) as Record<string, any>[];
+    const districtIds = [
+      ...new Set(
+        rows
+          .map((r: any) => r.student?.district_id)
+          .filter((id: number | undefined): id is number => !!id),
+      ),
+    ];
+    const districtMap = await resolveDistrictNames(districtIds);
 
-    const districtMap = await resolveDistrictNames(plainRows);
-
-    yield plainRows.map((app) => shapeRow(app, districtMap));
-
-    if (rows.length < BATCH_SIZE) {
-      break;
-    }
+    yield rows.map((row: any) => {
+      const app = row.toJSON();
+      return {
+        referenceNo: app.application_number ?? `APP-${app.id}`,
+        applicant: {
+          name: app.student?.name ?? null,
+          phone: app.student?.phone ?? null,
+        },
+        exam: {
+          type: getExamTypeName(app.exam_id),
+          board: null,
+          year: app.year_of_passing,
+        },
+        percentage: app.percentage_of_marks,
+        location: {
+          district: app.student?.district_id
+            ? (districtMap.get(app.student.district_id) ?? null)
+            : null,
+          subLocation: null,
+        },
+        appliedDate: app.submitted_at,
+        status: STATUS_BUCKET_MAP[app.application_status] ?? "pending",
+        bankName: app.bank_name ?? null,
+        branchName: app.branch_name ?? null,
+        accountNo: app.account_no ?? null,
+        ifscCode: app.ifsc_code ?? null,
+      };
+    });
 
     offset += BATCH_SIZE;
+    if (rows.length < BATCH_SIZE) break;
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Get Filter Options
-// ─────────────────────────────────────────────────────────────
+// ── getFilterOptions ─────────────────────────────────────────
 
 export const getFilterOptions = async () => {
-  const districts = (await District.findAll({
+  const districts = await District.findAll({
     attributes: ["id", "name"],
-
     order: [["name", "ASC"]],
-
     raw: true,
-  })) as unknown as Array<{
-    id: number;
-    name: string;
-  }>;
+  });
 
-  return {
-    districts,
-  };
+  return { districts };
 };
-
 
 export const getApplicationById = async (id: number) => {
   const row = await Application.findOne({
@@ -579,7 +398,6 @@ export const getApplicationById = async (id: number) => {
   const app = row.toJSON() as Record<string, any>;
   const s = app.student ?? {};
 
-  // ── Resolve district name (requires DB) ───────────────
   let districtName: string | null = null;
   if (s.district_id) {
     const district = (await District.findOne({
@@ -589,9 +407,6 @@ export const getApplicationById = async (id: number) => {
     })) as unknown as { name: string } | null;
     districtName = district?.name ?? null;
   }
-
-  // ── Resolve all labels server-side ────────────────────
-  // Frontend receives display-ready strings — no ID lookups needed there.
 
   const marksDisplay =
     app.marking_system === MARKING_SYSTEM.CGPA
@@ -603,13 +418,11 @@ export const getApplicationById = async (id: number) => {
         : null;
 
   return {
-    // ── Application overview ─────────────────────────────
     id: app.id as number,
     referenceNo: app.application_number ?? `APP-${app.id}`,
-    examType: getExamTypeName(app.exam_id), // resolved ✅
+    examType: getExamTypeName(app.exam_id),
     academicYear: app.academic_year as string,
-    applicationStatus: app.application_status as number, // kept for UI color logic
-    // resolved ✅
+    applicationStatus: app.application_status as number,
     applicationStatusLabel:
       (APPLICATION_STATUS_LABELS as Record<number, string>)[
         app.application_status
@@ -621,23 +434,20 @@ export const getApplicationById = async (id: number) => {
       ? new Date(app.status_updated_at).toISOString()
       : null,
 
-    // ── Academic details ─────────────────────────────────
-    boardName: app.board_id // resolved ✅
+    boardName: app.board_id
       ? (app.other_board_name ?? getBoardName(app.board_id))
       : null,
     rollNo: app.roll_no as string | null,
     yearOfPassing: app.year_of_passing as string | null,
-    marksDisplay, // resolved ✅
+    marksDisplay,
     institutionName: app.institution_name as string | null,
     institutionAddress: app.institution_address as string | null,
 
-    // ── Bank details ─────────────────────────────────────
     bankName: app.bank_name as string | null,
     branchName: app.branch_name as string | null,
     accountNo: app.account_no as string | null,
     ifscCode: app.ifsc_code as string | null,
 
-    // ── Payment ──────────────────────────────────────────
     paymentStatus: app.payment_status as number | null,
     paymentAmount:
       app.payment_amount != null ? Number(app.payment_amount) : null,
@@ -646,7 +456,6 @@ export const getApplicationById = async (id: number) => {
       : null,
     paymentMode: app.payment_mode as string | null,
 
-    // ── Review / approval / rejection ────────────────────
     underReviewAt: app.under_review_at
       ? new Date(app.under_review_at).toISOString()
       : null,
@@ -661,30 +470,98 @@ export const getApplicationById = async (id: number) => {
       : null,
     rejectionReason: app.rejection_reason as string | null,
 
-    // ── Personal ─────────────────────────────────────────
     studentName: (s.name ?? null) as string | null,
     phone: (s.phone ?? null) as string | null,
     email: (s.email ?? null) as string | null,
     guardianName: (s.guardian_name ?? null) as string | null,
-    genderName: s.gender_id ? getGenderName(s.gender_id) : null, // resolved ✅
+    genderName: s.gender_id ? getGenderName(s.gender_id) : null,
     dateOfBirth: (s.date_of_birth ?? null) as string | null,
-    casteName: s.caste_id // resolved ✅
+    casteName: s.caste_id
       ? (s.other_caste_name ?? getCasteName(s.caste_id))
       : null,
     aadhaarNumber: (s.aadhaar_number ?? null) as string | null,
 
-    // ── Address ──────────────────────────────────────────
     isResidentOfMacArea: s.is_resident_of_mac_area !== false,
-    // MAC-area
     districtName,
     panchayatName: (s.panchayat_name ?? null) as string | null,
     municipalArea: (s.municipal_area ?? null) as string | null,
     otherVillageName: (s.other_village_name ?? null) as string | null,
-    // Outside MAC
-    stateName: s.state_id ? getStateName(s.state_id) : null, // resolved ✅
+    stateName: s.state_id ? getStateName(s.state_id) : null,
     city: (s.city ?? null) as string | null,
     permanentAddress: (s.permanent_address ?? null) as string | null,
     presentAddress: (s.present_address ?? null) as string | null,
     pinCode: (s.pin_code ?? null) as string | null,
+  };
+};
+
+export const approveApplication = async (
+  id: number,
+  remarks: string | undefined,
+  actorId: number | undefined,
+): Promise<DecisionResult> => {
+  const app = await Application.findByPk(id);
+  if (!app) return { ok: false, reason: "NOT_FOUND" };
+
+  const currentStatus = Number(app.get("application_status"));
+  const DECIDABLE: number[] = [
+    APPLICATION_STATUS.SUBMITTED,
+    APPLICATION_STATUS.APPROVED,
+    APPLICATION_STATUS.REJECTED,
+  ];
+  if (
+    !DECIDABLE.includes(currentStatus) ||
+    currentStatus === APPLICATION_STATUS.APPROVED
+  ) {
+    return { ok: false, reason: "INVALID_STATUS", currentStatus };
+  }
+
+  await app.update({
+    application_status: APPLICATION_STATUS.APPROVED,
+    approved_at: new Date(),
+    approved_by: actorId ?? null,
+    approval_remarks: remarks ?? null,
+    status_updated_at: new Date(),
+  });
+
+  return {
+    ok: true,
+    id: app.get("id") as number,
+    status: APPLICATION_STATUS.APPROVED,
+  };
+};
+
+export const rejectApplication = async (
+  id: number,
+  remarks: string | undefined,
+  actorId: number | undefined,
+): Promise<DecisionResult> => {
+  const app = await Application.findByPk(id);
+  if (!app) return { ok: false, reason: "NOT_FOUND" };
+
+  const currentStatus = Number(app.get("application_status"));
+  const DECIDABLE: number[] = [
+    APPLICATION_STATUS.SUBMITTED,
+    APPLICATION_STATUS.APPROVED,
+    APPLICATION_STATUS.REJECTED,
+  ];
+  if (
+    !DECIDABLE.includes(currentStatus) ||
+    currentStatus === APPLICATION_STATUS.REJECTED
+  ) {
+    return { ok: false, reason: "INVALID_STATUS", currentStatus };
+  }
+
+  await app.update({
+    application_status: APPLICATION_STATUS.REJECTED,
+    rejected_at: new Date(),
+    rejected_by: actorId ?? null,
+    rejection_reason: remarks ?? null,
+    status_updated_at: new Date(),
+  });
+
+  return {
+    ok: true,
+    id: app.get("id") as number,
+    status: APPLICATION_STATUS.REJECTED,
   };
 };
