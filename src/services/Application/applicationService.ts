@@ -35,6 +35,8 @@ type DecisionResult =
   | { ok: false; reason: "NOT_FOUND" }
   | { ok: false; reason: "INVALID_STATUS"; currentStatus: number };
 
+// ── Helpers ──────────────────────────────────────────────────
+
 function escapeLike(value: string): string {
   return value.replace(/[%_\\]/g, (char) => `\\${char}`);
 }
@@ -53,6 +55,7 @@ const STATUS_BUCKET_MAP: Record<number, string> = {
   [APPLICATION_STATUS.APPROVED]: "approved",
   [APPLICATION_STATUS.REJECTED]: "rejected",
 };
+
 async function resolveDistrictNames(
   districtIds: number[],
 ): Promise<Map<number, string>> {
@@ -69,6 +72,17 @@ async function resolveDistrictNames(
   return map;
 }
 
+// ── WHERE condition builders ──────────────────────────────────
+
+// FIX: Search was previously split across two builders — application
+// conditions added `application_number LIKE` and student conditions
+// added `name/phone/email LIKE`. Because student conditions apply to
+// the JOIN's own where clause, Sequelize combined them with AND logic,
+// requiring BOTH to match simultaneously. Fixed by collapsing all four
+// search fields into a single Op.or in the APPLICATION conditions,
+// using Sequelize.col to reference the joined student columns. This
+// correctly returns rows where ANY of the four fields matches.
+
 function buildApplicationWhereConditions(
   params: GetApplicationsParams,
 ): WhereOptions[] {
@@ -78,28 +92,40 @@ function buildApplicationWhereConditions(
   if (params.exam && params.exam !== "all" && EXAM_ID_MAP[params.exam]) {
     appConditions.push({ exam_id: EXAM_ID_MAP[params.exam] });
   }
+
+  // ── Status filter ────────────────────────────────────────
   if (params.activeTab === "approved") {
     appConditions.push({ application_status: APPLICATION_STATUS.APPROVED });
   } else if (params.activeTab === "rejected") {
     appConditions.push({ application_status: APPLICATION_STATUS.REJECTED });
   }
 
-  // ── Reference number search (application-table field) ───
-  if (params.search) {
-    const escaped = escapeLike(params.search);
+  // ── Global search — single OR across all 4 fields ────────
+  // All four fields are in one Op.or so a match on ANY field
+  // returns the row. The student columns are referenced via
+  // Sequelize.col("student.name") etc., which works because the
+  // student model is always included with required: true (INNER JOIN),
+  // making those columns available in the WHERE clause.
+  if (params.search && params.search.trim()) {
+    const q = `%${escapeLike(params.search.trim())}%`;
     appConditions.push({
-      application_number: { [Op.like]: `%${escaped}%` },
-    });
+      [Op.or]: [
+        { application_number: { [Op.like]: q } },
+        Sequelize.where(Sequelize.col("student.name"), { [Op.like]: q }),
+        Sequelize.where(Sequelize.col("student.phone"), { [Op.like]: q }),
+        Sequelize.where(Sequelize.col("student.email"), { [Op.like]: q }),
+      ],
+    } as WhereOptions);
   }
 
   // ── Remarks search ────────────────────────────────────────
-  if (params.remarksSearch) {
-    const escaped = escapeLike(params.remarksSearch);
+  if (params.remarksSearch && params.remarksSearch.trim()) {
+    const q = `%${escapeLike(params.remarksSearch.trim())}%`;
     appConditions.push({
       [Op.or]: [
-        { review_remarks: { [Op.like]: `%${escaped}%` } },
-        { approval_remarks: { [Op.like]: `%${escaped}%` } },
-        { rejection_reason: { [Op.like]: `%${escaped}%` } },
+        { review_remarks: { [Op.like]: q } },
+        { approval_remarks: { [Op.like]: q } },
+        { rejection_reason: { [Op.like]: q } },
       ],
     } as WhereOptions);
   }
@@ -127,6 +153,8 @@ function buildApplicationWhereConditions(
   return appConditions;
 }
 
+// Student-table conditions — only non-search filters remain here.
+// Search was removed from this builder (see fix note above).
 function buildStudentWhereConditions(
   params: GetApplicationsParams,
 ): WhereOptions[] {
@@ -144,23 +172,6 @@ function buildStudentWhereConditions(
 
   if (params.district && params.district !== "all") {
     studentConditions.push({ district_id: Number(params.district) });
-  }
-
-  if (params.search) {
-    const escaped = escapeLike(params.search);
-    studentConditions.push({
-      [Op.or]: [
-        Sequelize.where(Sequelize.col("student.name"), {
-          [Op.like]: `%${escaped}%`,
-        }),
-        Sequelize.where(Sequelize.col("student.phone"), {
-          [Op.like]: `%${escaped}%`,
-        }),
-        Sequelize.where(Sequelize.col("student.email"), {
-          [Op.like]: `%${escaped}%`,
-        }),
-      ],
-    } as WhereOptions);
   }
 
   return studentConditions;
@@ -186,6 +197,7 @@ export const getApplications = async (params: GetApplicationsParams) => {
           "id",
           "name",
           "phone",
+          "email",
           "district_id",
           "is_resident_of_mac_area",
         ],
@@ -198,9 +210,9 @@ export const getApplications = async (params: GetApplicationsParams) => {
     limit,
     offset,
     order: [["created_at", "DESC"]],
+    subQuery: false,
   });
 
-  // Batch-resolve district names — avoids N+1 queries
   const districtIds = [
     ...new Set(
       rows
@@ -218,9 +230,17 @@ export const getApplications = async (params: GetApplicationsParams) => {
       applicant: {
         name: app.student?.name ?? null,
         phone: app.student?.phone ?? null,
+        initials: ((app.student?.name ?? "") as string)
+          .split(" ")
+          .filter(Boolean)
+          .map((w: string) => w[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
       },
       exam: {
         type: getExamTypeName(app.exam_id),
+        board: null,
         year: app.year_of_passing,
       },
       percentage:
@@ -231,6 +251,7 @@ export const getApplications = async (params: GetApplicationsParams) => {
         district: app.student?.district_id
           ? (districtMap.get(app.student.district_id) ?? null)
           : null,
+        subLocation: null,
       },
       appliedDate: app.submitted_at,
       status: STATUS_BUCKET_MAP[app.application_status] ?? "pending",
@@ -239,6 +260,8 @@ export const getApplications = async (params: GetApplicationsParams) => {
 
   return { applications, total: count, page, limit };
 };
+
+// ── getApplicationsForExport — async generator, batched ─────
 
 export async function* getApplicationsForExport(
   params: GetApplicationsParams,
@@ -256,7 +279,7 @@ export async function* getApplicationsForExport(
         {
           model: Student,
           as: "student",
-          attributes: ["name", "phone", "district_id"],
+          attributes: ["name", "phone", "email", "district_id"],
           where: studentConditions.length
             ? { [Op.and]: studentConditions }
             : undefined,
@@ -266,6 +289,7 @@ export async function* getApplicationsForExport(
       limit: BATCH_SIZE,
       offset,
       order: [["created_at", "DESC"]],
+      subQuery: false,
     });
 
     if (rows.length === 0) break;
@@ -301,6 +325,9 @@ export async function* getApplicationsForExport(
         },
         appliedDate: app.submitted_at,
         status: STATUS_BUCKET_MAP[app.application_status] ?? "pending",
+        // Bank details — columns already fetched (no attributes
+        // restriction on Application.findAll), mapped here so
+        // exportServices.ts toRow() can read them.
         bankName: app.bank_name ?? null,
         branchName: app.branch_name ?? null,
         accountNo: app.account_no ?? null,
@@ -324,6 +351,8 @@ export const getFilterOptions = async () => {
 
   return { districts };
 };
+
+// ── getApplicationById — View Details page ──────────────────
 
 export const getApplicationById = async (id: number) => {
   const row = await Application.findOne({
@@ -493,6 +522,8 @@ export const getApplicationById = async (id: number) => {
     pinCode: (s.pin_code ?? null) as string | null,
   };
 };
+
+// ── approveApplication / rejectApplication ───────────────────
 
 export const approveApplication = async (
   id: number,
