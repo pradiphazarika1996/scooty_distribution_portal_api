@@ -1,62 +1,46 @@
-import { EXAM_TYPE } from "./student";
+export const APPLICATION_STATUS = Object.freeze({
+  DRAFT: 1,
+  SUBMITTED: 2,
+});
 
-/**
- * Generate unique application number in format: PMS/AS/YYYY/NNNNN
- * PMS = Provincialisation Management System
- * AS = Assam
- * YYYY = Year
- * NNNNN = Sequential number
- */
-
-const EXAM_PREFIX: Record<number, string> = {
-  [EXAM_TYPE.HSLC]: "HSLC",
-  [EXAM_TYPE.HS]: "HS",
+export const APPLICATION_STATUS_LABELS = {
+  [APPLICATION_STATUS.SUBMITTED]: "Submitted",
 };
 
-export const generateApplicationNumber = async (
-  examId: number,
-  applicationId: number,
-): Promise<string> => {
-  const year = new Date().getFullYear();
-  const prefix = EXAM_PREFIX[examId] || "SCH";
+export const MERIT_AWARD_FORM_STEPS = 3;
 
-  return `MAC/${prefix}/${year}/${applicationId}`;
-  // e.g. MAC/HSLC/2026/1
+export const generateApplicationNumber = (studentId: number): string => {
+  return `ARN-2026-27-${studentId}`;
 };
 
 export const ALLOWED_PERSONAL_FIELDS = [
   "name",
   "guardian_name",
   "gender_id",
-  "date_of_birth",
-  "caste_id",
-  "aadhaar_number",
-  "mac_constituency_name_id",
-  "mac_constituency_no_id",
-  "state",
-  "district",
-  "constituency",
-  "panchayat",
-  "city",
-  "village",
-  "address",
-  "pin_code",
+  "district_id",
+  "email",
 ] as const;
 
-export const ALLOWED_ACADEMIC_FIELDS = [
-  "year_of_passing",
-  "board_id",
-  "roll_no",
-  "percentage_of_marks",
+export const ALLOWED_APPLICATION_FIELDS = [
   "institution_name",
-  "institution_address",
-] as const;
-
-export const ALLOWED_BANK_FIELDS = [
-  "bank_name",
-  "branch_name",
-  "account_no",
-  "ifsc_code",
+  "institution_district",
+  "roll_no",
+  "registration_no",
+  "registration_session",
+  "percentage_of_marks",
+  "total_marks_obtained",
+  "is_enrolled_in_college",
+  "present_institution_name",
+  "present_institution_district",
+  "admission_via_samarth",
+  "samarth_registration_no",
+  "is_betterment_reappearance",
+  "betterment_years",
+  "betterment_reason",
+  "declaration_guidelines_read",
+  "declaration_info_true",
+  "declaration_no_other_scheme",
+  "declaration_agreed",
 ] as const;
 
 export const pickAllowed = <T extends Record<string, any>>(
@@ -70,166 +54,87 @@ export const pickAllowed = <T extends Record<string, any>>(
   return result as Partial<T>;
 };
 
-export const DOCUMENT_TYPES = Object.freeze({
-  GOVT_ID: 1,
-  MARKSHEET: 2,
-  AGE_PROOF: 3,
-  ADDRESS_PROOF: 4,
-  SCHOOL_PASS_CERTIFICATE: 5,
-  BANK_PASS_BOOK: 6,
-  CASTE_CERTIFICATE: 7,
-  PASSPORT: 8,
-  INCOME_PROOF: 9,
-});
+export const validateMeritApplication = (student: Record<string, any>) => {
+  const errors: Record<string, string> = {};
 
-export const DOCUMENT_TYPES_ARRAY = [
-  {
-    key: DOCUMENT_TYPES.GOVT_ID,
-    label: "Government ID",
-    description: "Aadhaar Card / PAN Card",
-    required: true,
-  },
-  {
-    key: DOCUMENT_TYPES.MARKSHEET,
-    label: "HSLC / HS Marksheet",
-    description: "Scanned copy of marksheet",
-    required: true,
-  },
-  {
-    key: DOCUMENT_TYPES.AGE_PROOF,
-    label: "Age Proof",
-    description: "Birth Certificate / HSLC Admit Card",
-    required: true,
-  },
-  {
-    key: DOCUMENT_TYPES.ADDRESS_PROOF,
-    label: "Address Proof",
-    description: "Aadhaar Card / Electricity Bill / DL / Any other document",
-    required: true,
-  },
-  {
-    key: DOCUMENT_TYPES.SCHOOL_PASS_CERTIFICATE,
-    label: "School Pass Certificate",
-    description: "Scanned copy of pass certificate",
-    required: false,
-  },
-  {
-    key: DOCUMENT_TYPES.BANK_PASS_BOOK,
-    label: "Bank Pass Book",
-    description: "First page of bank passbook",
-    required: true,
-  },
-  {
-    key: DOCUMENT_TYPES.CASTE_CERTIFICATE,
-    label: "Caste Certificate",
-    description: "Issued by competent authority",
-    required: false,
-  },
-  {
-    key: DOCUMENT_TYPES.PASSPORT,
-    label: "Passport Photo",
-    description: "Scanned copy of passport photograph",
-    required: true,
-  },
-  {
-    key: DOCUMENT_TYPES.INCOME_PROOF,
-    label: "Income Proof",
-    description: "Income Proof (Income Certificate / BPL Card / Ration Card)",
-    required: false,
-  },
-] as const;
+  if (student.is_enrolled_in_college) {
+    if (!student.present_institution_name) {
+      errors.present_institution_name =
+        "Required when enrolled in college/university (item 14)";
+    }
+    if (!student.present_institution_district) {
+      errors.present_institution_district =
+        "Required when enrolled in college/university (item 15)";
+    }
+  }
 
-export const ACCEPTED_FILE_TYPES = ".pdf,.jpg,.jpeg,.png";
-export const MAX_FILE_SIZE_MB = 2;
+  if (student.admission_via_samarth && !student.samarth_registration_no) {
+    errors.samarth_registration_no =
+      "Required when admission was through Assam SAMARTH (item 17)";
+  }
 
-export const APPLICATION_STATUS = Object.freeze({
-  DRAFT: 1,
-  SUBMITTED: 2,
-  PAYMENT_COMPLETED: 3,
-  UNDER_REVIEW: 4,
-  QUERY_RAISED: 5,
-  APPROVED: 6,
-  REJECTED: 7,
-});
+  if (student.is_betterment_reappearance) {
+    if (!student.betterment_years) {
+      errors.betterment_years =
+        "Year(s) required for betterment/reappearance category (item 20)";
+    }
+    if (!student.betterment_reason) {
+      errors.betterment_reason =
+        "Reason required for betterment/reappearance category (item 20)";
+    }
+  }
 
-export const PAYMENT_STATUS = Object.freeze({
-  PENDING: 1,
-  COMPLETED: 2,
-  FAILED: 3,
-});
+  if (
+    !student.declaration_guidelines_read ||
+    !student.declaration_info_true ||
+    !student.declaration_no_other_scheme ||
+    !student.declaration_agreed
+  ) {
+    errors.declaration = "All declaration checkboxes must be accepted";
+  }
 
-export const APPLICATION_STATUS_LABELS = {
-  [APPLICATION_STATUS.SUBMITTED]: "Submitted",
-  [APPLICATION_STATUS.PAYMENT_COMPLETED]: "Payment Completed",
-  [APPLICATION_STATUS.UNDER_REVIEW]: "Under Review",
-  [APPLICATION_STATUS.QUERY_RAISED]: "Query Raised",
-  [APPLICATION_STATUS.APPROVED]: "Approved",
-  [APPLICATION_STATUS.REJECTED]: "Rejected",
+  return { isValid: Object.keys(errors).length === 0, errors };
 };
 
-export const MARKING_SYSTEM = Object.freeze({
-  PERCENTAGE: 1,
-  CGPA: 2,
+export const DISTRICTS = Object.freeze({
+  Baksa: 1,
+  Barpeta: 2,
+  Biswanath: 3,
+  Bongaigaon: 4,
+  Cachar: 5,
+  Charaideo: 6,
+  Chirang: 7,
+  Darrang: 8,
+  Dhemaji: 9,
+  Dhubri: 10,
+  Dibrugarh: 11,
+  Dima_Hasao: 12,
+  Goalpara: 13,
+  Golaghat: 14,
+  Hailakandi: 15,
+  Hojai: 16,
+  Jorhat: 17,
+  Kamrup: 18,
+  Kamrup_Metropolitan: 19,
+  Karbi_Anglong: 20,
+  Karimganj: 21,
+  Kokrajhar: 22,
+  Lakhimpur: 23,
+  Majuli: 24,
+  Morigaon: 25,
+  Nagaon: 26,
+  Nalbari: 27,
+  Sivasagar: 28,
+  Sonitpur: 29,
+  South_Salmara_Mankachar: 30,
+  Tinsukia: 31,
+  Udalguri: 32,
+  West_Karbi_Anglong: 33,
 });
 
-// States
-export const STATES = Object.freeze({
-  Andhra_Pradesh: 1,
-  Arunachal_Pradesh: 2,
-  Assam: 3,
-  Bihar: 4,
-  Chhattisgarh: 5,
-  Goa: 6,
-  Gujarat: 7,
-  Haryana: 8,
-  Himachal_Pradesh: 9,
-  Jharkhand: 10,
-  Karnataka: 11,
-  Kerala: 12,
-  Madhya_Pradesh: 13,
-  Maharashtra: 14,
-  Manipur: 15,
-  Meghalaya: 16,
-  Mizoram: 17,
-  Nagaland: 18,
-  Odisha: 19,
-  Punjab: 20,
-  Rajasthan: 21,
-  Sikkim: 22,
-  Tamil_Nadu: 23,
-  Telangana: 24,
-  Tripura: 25,
-  Uttar_Pradesh: 26,
-  Uttarakhand: 27,
-  West_Bengal: 28,
-  Andaman_and_Nicobar_Islands: 29,
-  Chandigarh: 30,
-  Dadra_and_Nagar_Haveli_and_Daman_and_Diu: 31,
-  Delhi: 32,
-  Jammu_and_Kashmir: 33,
-  Ladakh: 34,
-  Lakshadweep: 35,
-  Puducherry: 36,
-});
-// ── Add to existing utils/students/application.ts ────────
-// Same file/pattern as GENDER_OPTIONS, EXAM_OPTIONS, LAST_ACTION_OPTIONS.
-
-
-export const STATE_OPTIONS = Object.entries(STATES).map(([label, value]) => ({
-  label: label
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase()),
-  value,
-}));
-
-export function getStateName(value: number) {
-  const option = STATE_OPTIONS.find((opt) => opt.value == value);
-  return option ? option.label : "Unknown State";
-}
-
-// Deadline: 25 June 2026, 5:00 PM IST (UTC+5:30 = 11:30 AM UTC)
-export const APPLICATION_DEADLINE = new Date("2026-06-25T11:30:00.000Z");
-
-export const isAfterDeadline = (): boolean => {
-  return new Date() > APPLICATION_DEADLINE;
-};
+export const DISTRICT_OPTIONS = Object.entries(DISTRICTS).map(
+  ([label, value]) => ({
+    label: label.replace(/_/g, " "),
+    value,
+  }),
+);

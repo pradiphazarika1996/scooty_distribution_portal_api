@@ -9,6 +9,13 @@ import Student from "../../models/student/Student.model";
 import { getRedis, setRedis } from "../../services/RedisService";
 import { IStudent } from "../../types/models";
 import { sendOtpMessage, verifyOtpCode } from "./authService";
+// NEW — eligibility verification against StudentLookup. Adjust this import
+// path to wherever registrationVerification.service.ts actually lives.
+import {
+  assertNotAlreadyRegistered,
+  createStudentFromLookup,
+  verifyStudentEligibility,
+} from "../../services/students/registrationVerificationService";
 
 const signAuthToken = jwt.signAuthToken;
 const verifyAuthToken = jwt.verifyAuthToken;
@@ -31,7 +38,7 @@ export default {
         return res.status(200).send({ status: true, data: cachedGetStudent });
 
       const student = await Student.findOne({
-        attributes: ["id", "name", "phone", "role_id", "is_active"],
+        attributes: ["id", "name", "phone", "role_id"],
         where: { id: studentId },
       }).catch((err) => {
         console.error("getStudent fetch error:", err);
@@ -64,9 +71,24 @@ export default {
   },
   registerSendOtp: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const payload = req.body as IStudent;
+      const payload = req.body as IStudent & {
+        registration_no?: string;
+        roll?: string;
+        number?: string;
+        // institution_code?: string;
+      };
 
       if (!payload.phone) throw httpError.BadRequest("Phone is required");
+      if (
+        !payload.registration_no ||
+        !payload.roll ||
+        !payload.number
+        // !payload.institution_code
+      ) {
+        throw httpError.BadRequest(
+          "Registration Number, Roll, Number, and Institution Code are all required.",
+        );
+      }
 
       const canRequest = await canRequestOtp(payload.phone);
       if (!canRequest)
@@ -78,6 +100,13 @@ export default {
 
       if (existing)
         throw httpError.Forbidden("This number is already been registered");
+      await verifyStudentEligibility({
+        registration_no: payload.registration_no,
+        roll: payload.roll,
+        number: payload.number,
+        // institution_code: payload.institution_code,
+      });
+      await assertNotAlreadyRegistered(payload.registration_no);
 
       const verification: any = await sendOtpMessage(
         payload.phone,
@@ -86,8 +115,13 @@ export default {
       );
 
       if (!verification) throw httpError.InternalServerError();
+
       const token = await signAuthToken({
         phone: payload.phone,
+        registration_no: payload.registration_no,
+        roll: payload.roll,
+        number: payload.number,
+        // institution_code: payload.institution_code,
       });
       res.status(200).send({ status: true, data: { token } });
     } catch (error: any) {
@@ -112,18 +146,27 @@ export default {
 
       const phone = studentData.phone;
       await verifyOtpCode(phone, otp);
-
-      const student: any = await Student.create({
-        ...studentData,
-        role_id: UserType.STUDENT,
-        account_status: AccountStatus.ACTIVE,
-        is_phone_verified: true,
-      }).catch((error) => {
-        if (error.name === "SequelizeUniqueConstraintError") {
-          throw httpError.Conflict("This phone number is already registered");
-        }
-        throw httpError.InternalServerError(error);
+      const lookupRecord = await verifyStudentEligibility({
+        registration_no: studentData.registration_no,
+        roll: studentData.roll,
+        number: studentData.number,
+        // institution_code: studentData.institution_code,
       });
+      await assertNotAlreadyRegistered(studentData.registration_no);
+      const student: any = await createStudentFromLookup(lookupRecord, phone)
+        .then((created) =>
+          created.update({
+            role_id: UserType.STUDENT,
+            account_status: AccountStatus.ACTIVE,
+            is_phone_verified: true,
+          }),
+        )
+        .catch((error) => {
+          if (error.name === "SequelizeUniqueConstraintError") {
+            throw httpError.Conflict("This phone number is already registered");
+          }
+          throw error; // EligibilityError/DuplicateRegistrationError already carry .status
+        });
 
       const accessToken = await signAccessToken(student.id);
 
@@ -146,7 +189,7 @@ export default {
         status: true,
         data: {
           phone: student.phone,
-          role: UserType.ADMIN,
+          role: UserType.STUDENT,
         },
       });
     } catch (error: any) {
@@ -252,8 +295,8 @@ export default {
   },
   logout: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      res.clearCookie("access_token", { domain: ".macasp.org" });
-      // res.clearCookie("access_token");
+      // res.clearCookie("access_token", { domain: ".macasp.org" });
+      res.clearCookie("access_token");
       res.status(200).send({ status: true });
     } catch (err) {
       next(err);

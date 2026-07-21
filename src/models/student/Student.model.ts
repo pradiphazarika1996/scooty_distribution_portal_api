@@ -1,7 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../config/sequelize";
-import { PROFILE_STATUS } from "../../helpers/students/student";
-
+import { APPLICATION_STATUS } from "../../helpers/students/application";
 const Student = sequelize.define(
   "Student",
   {
@@ -10,126 +9,108 @@ const Student = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
-
-    // ── Auth & Account ──
-    phone: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      unique: true,
-    },
-    email: {
-      type: DataTypes.STRING,
-    },
-    role_id: {
-      type: DataTypes.INTEGER,
-    },
-    is_active: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true,
-    },
-
-    // ── Personal Details (filled once, reused across applications) ──
     name: {
-      type: DataTypes.STRING,
-    },
-    avatar_url: {
-      type: DataTypes.STRING,
-    },
-    guardian_name: {
       type: DataTypes.STRING,
     },
     gender_id: {
       type: DataTypes.INTEGER,
     },
-    date_of_birth: {
-      type: DataTypes.DATEONLY,
-    },
-    caste_id: {
-      type: DataTypes.INTEGER,
-    },
-    other_caste_name: {
+    father_name: {
       type: DataTypes.STRING,
-    },
-    aadhaar_number: {
-      type: DataTypes.STRING(12),
     },
 
-    // ── Address ──
-    is_resident_of_mac_area: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true,
-    },
-    state_id: {
-      type: DataTypes.INTEGER,
-    },
-    city: {
+    mother_name: {
       type: DataTypes.STRING,
     },
-    permanent_address: {
+
+    phone: {
       type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
     },
-    present_address: {
+
+    // ── A. Personal Details (Annexure-I items 1-6) ──
+    email: {
       type: DataTypes.STRING,
     },
     district_id: {
       type: DataTypes.INTEGER,
     },
-    constituency_id: {
-      type: DataTypes.INTEGER,
-    },
-    constituency_number: {
-      type: DataTypes.INTEGER,
-    },
-    village_id: {
-      type: DataTypes.INTEGER,
-    },
-    other_village_name: {
+    // ── B. Higher Secondary Examination Details (items 7-13) ──
+    institution_name: {
       type: DataTypes.STRING,
     },
-    panchayat_name: {
+    institution_district: {
+      type: DataTypes.INTEGER,
+    },
+    roll: {
       type: DataTypes.STRING,
     },
-    municipal_area: {
+    number: {
       type: DataTypes.STRING,
     },
-    pin_code: {
-      type: DataTypes.STRING(6),
+    registration_no: {
+      type: DataTypes.STRING,
+    },
+    registration_session: {
+      type: DataTypes.STRING,
+    },
+    percentage_of_marks: {
+      type: DataTypes.DECIMAL(5, 2),
+    },
+    total_marks_obtained: {
+      type: DataTypes.DECIMAL(6, 2),
     },
 
-    // ── Profile Status ──
-    is_profile_completed: {
+    // ── C. Educational Details — conditional (items 14-17, 19-20) ──
+    is_enrolled_in_college: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
-    profile_status: {
+    present_institution_name: {
+      type: DataTypes.STRING,
+    },
+    present_institution_district: {
       type: DataTypes.INTEGER,
-      defaultValue: PROFILE_STATUS.DRAFT,
     },
-    profile_completed_at: {
-      type: DataTypes.DATE,
-    },
-    is_profile_locked: {
+    admission_via_samarth: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+    },
+    samarth_registration_no: {
+      type: DataTypes.STRING,
+    },
+    is_betterment_reappearance: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    betterment_years: {
+      type: DataTypes.STRING,
+    },
+    betterment_reason: {
+      type: DataTypes.TEXT,
     },
 
-    // ── Verification ──
-    is_email_verified: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
+    // ── Application Progress & Status ──
+    application_number: {
+      type: DataTypes.STRING,
     },
-    email_verified_at: {
+    application_status: {
+      type: DataTypes.INTEGER,
+      defaultValue: APPLICATION_STATUS.DRAFT,
+    },
+    submitted_at: {
       type: DataTypes.DATE,
+    },
+    account_status: {
+      type: DataTypes.TINYINT,
     },
     is_phone_verified: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
-    phone_verified_at: {
-      type: DataTypes.DATE,
-    },
-    account_status: {
-      type: DataTypes.TINYINT,
+    role_id: {
+      type: DataTypes.INTEGER,
     },
   },
   {
@@ -138,8 +119,7 @@ const Student = sequelize.define(
     underscored: true,
     indexes: [
       { unique: true, fields: ["phone"] },
-      { fields: ["email"] },
-      { fields: ["is_active"] },
+      { fields: ["application_number"] },
     ],
   },
 );

@@ -5,8 +5,8 @@ export const REDIS_PREFIX = {
   RATE_LIMIT: "rate",
 };
 
-export const OTP_REQUEST_LIMIT = 5;
-export const OTP_VERIFY_LIMIT = 5;
+export const OTP_REQUEST_LIMIT = 20;
+export const OTP_VERIFY_LIMIT = 20;
 export const OTP_WINDOW = 60 * 60;
 export const OTP_TTL = 5 * 60;
 
