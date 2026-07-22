@@ -118,7 +118,7 @@ export const DISTRICTS = Object.freeze({
   Hojai: 16,
   Jorhat: 17,
   Kamrup_Metro: 18,
-  Kamrup_Rural: 19,
+  Kamrup: 19,
   Karbi_Anglong: 20,
   Kokrajhar: 21,
   Lakhimpur: 22,
