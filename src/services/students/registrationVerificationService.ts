@@ -1,14 +1,8 @@
-import Student from "../../models/student/Student.model";
-import StudentLookup from "../../models/student/StudentLookup.model";
 import { DISTRICT_OPTIONS } from "../../helpers/students/application";
 import { GENDER } from "../../helpers/students/student";
+import Student from "../../models/student/Student.model";
+import StudentLookup from "../../models/student/StudentLookup.model";
 
-// Maps StudentLookup's raw single-letter gender codes ("M"/"F", as they
-// appear in the source exam-result data) to the app's GENDER enum values.
-// Deliberately NOT using GENDER_OPTIONS here — that's an array of
-// { label, value } built for populating <Select>/<Radio.Group> options,
-// not for keyed lookups, and its labels ("MALE"/"FEMALE") don't match
-// StudentLookup's single-letter codes anyway.
 const GENDER_CODE_TO_ID: Record<string, number> = {
   M: GENDER.MALE,
   F: GENDER.FEMALE,
@@ -34,7 +28,6 @@ interface VerifyEligibilityInput {
   registration_no: string;
   roll: string;
   number: string;
-  // institution_code: string;
 }
 
 export const verifyStudentEligibility = async ({
@@ -48,7 +41,6 @@ export const verifyStudentEligibility = async ({
       registration_no,
       roll,
       number,
-      // institution_code,
     },
   });
 
@@ -87,11 +79,6 @@ export const createStudentFromLookup = async (
   phone: string,
 ) => {
   const lookup = lookupRecord.get({ plain: true }) as any;
-
-  // FIXED: was `GENDER_OPTIONS[lookup.gender.trim().toUpperCase()]`, which
-  // always returned undefined (indexing an array by string key isn't a
-  // lookup) and would have mismatched on labels even if it were. This maps
-  // the actual "M"/"F" letter code to the correct gender_id.
   const genderId = lookup.gender
     ? GENDER_CODE_TO_ID[lookup.gender.trim().toUpperCase()]
     : undefined;
@@ -107,18 +94,11 @@ export const createStudentFromLookup = async (
     number: lookup.number,
     registration_no: lookup.registration_no,
     registration_session: lookup.registration_session,
-    total_marks_obtained: lookup.total_marks,
-    percentage_of_marks: lookup.percentage,
   });
 
   return student;
 };
 
-/**
- * Full flow, for convenience — call this from your register/verify-otp
- * handler once the OTP itself has already been verified and you have a
- * confirmed phone number.
- */
 export const registerVerifiedStudent = async (
   input: VerifyEligibilityInput,
   phone: string,

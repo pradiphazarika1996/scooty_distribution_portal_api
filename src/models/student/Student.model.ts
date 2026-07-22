@@ -61,6 +61,7 @@ const Student = sequelize.define(
     total_marks_obtained: {
       type: DataTypes.DECIMAL(6, 2),
     },
+    remarks: { type: DataTypes.STRING },
 
     // ── C. Educational Details — conditional (items 14-17, 19-20) ──
     is_enrolled_in_college: {

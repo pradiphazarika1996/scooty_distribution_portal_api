@@ -1,5 +1,5 @@
-import sequelize from "../../config/sequelize";
 import { DataTypes } from "sequelize";
+import sequelize from "../../config/sequelize";
 
 const StudentLookup = sequelize.define(
   "StudentLookup",
@@ -72,9 +72,6 @@ const StudentLookup = sequelize.define(
       {
         fields: ["roll", "number"],
       },
-      // {
-      //   fields: ["institution_code"],
-      // },
     ],
   },
 );
