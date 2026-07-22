@@ -80,23 +80,11 @@ export const CASTE_OPTIONS = [
   { label: "Other", value: 8 },
 ];
 
-// export const CASTE_OPTIONS = Object.entries(CASTE).map(([label, value]) => ({
-//   label,
-//   value,
-// }));
-
 export function getCasteName(value: number) {
   const option = CASTE_OPTIONS.find((opt) => opt.value == value);
   return option ? option.label : "";
 }
 
-/**
- * Exam hierarchy config — drives eligibility logic.
- * `level`: lower number = lower class. A student can only apply
- *          for same or higher level after an existing application.
- * `canApplyAfter`: exam IDs that unlock this exam.
- *                  Empty array = available to all first-time applicants.
- */
 export const EXAM_HIERARCHY: Record<
   number,
   { label: string; level: number; canApplyAfter: number[]; minGapYears: number }
@@ -115,17 +103,10 @@ export const EXAM_HIERARCHY: Record<
   },
 };
 
-/**
- * Returns current academic year string (e.g., "2025-2026").
- * Academic year starts in April in India.
- */
 export const getCurrentAcademicYear = (): string => {
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth(); // 0-indexed
-
-  // April (3) onwards = current year - next year
-  // Jan-Mar = previous year - current year
+  const month = now.getMonth();
   if (month >= 3) {
     return `${year}-${year + 1}`;
   }
