@@ -16,7 +16,7 @@ export const sendSmsOtp = async ({ phone, otp }: SendSmsOtpParams) => {
         mobile: phone,
         sid: "14376",
         otp: String(otp),
-        appName: "PMS",
+        appName: " Dr.Banikanta Kakati Merit Award",
       },
       timeout: 10000,
     });
