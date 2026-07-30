@@ -137,9 +137,24 @@ export const DISTRICTS = Object.freeze({
   Dima_Hasao: 35,
 });
 
+// export const DISTRICT_OPTIONS = Object.entries(DISTRICTS).map(
+//   ([label, value]) => ({
+//     label: label.replace(/_/g, " "),
+//     value,
+//   }),
+// );
+
+const DISTRICT_LABEL_OVERRIDES: Partial<
+  Record<keyof typeof DISTRICTS, string>
+> = {
+  Kamrup_Metro: "Kamrup (Metro)",
+};
+
 export const DISTRICT_OPTIONS = Object.entries(DISTRICTS).map(
-  ([label, value]) => ({
-    label: label.replace(/_/g, " "),
+  ([key, value]) => ({
+    label:
+      DISTRICT_LABEL_OVERRIDES[key as keyof typeof DISTRICTS] ??
+      key.replace(/_/g, " "),
     value,
   }),
 );
