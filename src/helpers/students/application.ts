@@ -45,6 +45,47 @@ export const ALLOWED_APPLICATION_FIELDS = [
   "declaration_no_other_scheme",
   "declaration_agreed",
 ] as const;
+export const SUBMIT_EDITABLE_FIELDS = [
+  "mother_name",
+  "email",
+  "district_id",
+  "total_marks_obtained",
+  "remarks",
+  "is_enrolled_in_college",
+  "present_institution_name",
+  "present_institution_district",
+  "admission_via_samarth",
+  "samarth_registration_no",
+  "is_betterment_reappearance",
+  "betterment_years",
+  "betterment_reason",
+  "declaration_guidelines_read",
+  "declaration_info_true",
+  "declaration_no_other_scheme",
+  "declaration_agreed",
+] as const;
+
+export const ELIGIBILITY_THRESHOLD = 80;
+export const MAX_TOTAL_MARKS = 500;
+
+export const calculatePercentageOfMarks = (
+  totalMarks: unknown,
+): number | null => {
+  const numericTotal =
+    typeof totalMarks === "number" ? totalMarks : Number(totalMarks);
+
+  if (
+    totalMarks === null ||
+    totalMarks === undefined ||
+    totalMarks === "" ||
+    Number.isNaN(numericTotal)
+  ) {
+    return null;
+  }
+  if (numericTotal < 0 || numericTotal > MAX_TOTAL_MARKS) return null;
+
+  return Math.round((numericTotal / MAX_TOTAL_MARKS) * 100 * 100) / 100;
+};
 
 export const pickAllowed = <T extends Record<string, any>>(
   data: T,
@@ -135,19 +176,14 @@ export const DISTRICTS = Object.freeze({
   Udalguri: 33,
   West_Karbi_Anglong: 34,
   Dima_Hasao: 35,
+  Others: 36,
 });
-
-// export const DISTRICT_OPTIONS = Object.entries(DISTRICTS).map(
-//   ([label, value]) => ({
-//     label: label.replace(/_/g, " "),
-//     value,
-//   }),
-// );
 
 const DISTRICT_LABEL_OVERRIDES: Partial<
   Record<keyof typeof DISTRICTS, string>
 > = {
   Kamrup_Metro: "Kamrup (Metro)",
+  South_Salmara_Mankachar: "South Salmara-Mankachar",
 };
 
 export const DISTRICT_OPTIONS = Object.entries(DISTRICTS).map(
