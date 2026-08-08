@@ -103,6 +103,10 @@ const Student = sequelize.define(
     submitted_at: {
       type: DataTypes.DATE,
     },
+    is_edited: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
     account_status: {
       type: DataTypes.TINYINT,
     },
