@@ -4,10 +4,13 @@ import {
   calculatePercentageOfMarks,
   ELIGIBILITY_THRESHOLD,
   generateApplicationNumber,
+  isPortalClosed,
+  PORTAL_CLOSED_MESSAGE,
   pickAllowed,
   SUBMIT_EDITABLE_FIELDS,
   validateMeritApplication,
 } from "../../helpers/students/application";
+import { getGenderName } from "../../helpers/students/student";
 import Student from "../../models/student/Student.model";
 
 export const getApplication = async (
@@ -46,6 +49,13 @@ export const submitApplication = async (
   next: NextFunction,
 ) => {
   try {
+    if (isPortalClosed()) {
+      return res.status(403).json({
+        status: false,
+        message: PORTAL_CLOSED_MESSAGE,
+      });
+    }
+
     const studentId = req.payload.id;
 
     const student = await Student.findByPk(studentId);
@@ -133,6 +143,18 @@ export const reopenApplication = async (
   next: NextFunction,
 ) => {
   try {
+    // NEW: blocks starting a new edit session once the deadline has
+    // passed — reopening an application you could never actually
+    // re-save is a dead end, so this is refused up front rather than
+    // letting the user edit for nothing and hit the block later at
+    // submitApplication.
+    if (isPortalClosed()) {
+      return res.status(403).json({
+        status: false,
+        message: PORTAL_CLOSED_MESSAGE,
+      });
+    }
+
     const studentId = req.payload.id;
 
     const student = await Student.findByPk(studentId);
@@ -168,3 +190,71 @@ export const reopenApplication = async (
     });
   }
 };
+
+// ── Admin: unaffected by the deadline — must still work regardless of
+// whether the portal is open or closed. Status filter (from earlier)
+// preserved as-is.
+const STATUS_FILTER_MAP: Record<string, number> = {
+  submitted: APPLICATION_STATUS.SUBMITTED,
+  draft: APPLICATION_STATUS.DRAFT,
+};
+
+export const getAllStudents = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const rawStatus = req.query.status;
+
+    if (rawStatus !== undefined) {
+      if (typeof rawStatus !== "string") {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid status filter.",
+        });
+      }
+      const normalized = rawStatus.trim().toLowerCase();
+      if (!(normalized in STATUS_FILTER_MAP)) {
+        return res.status(400).json({
+          status: false,
+          message: `Invalid status filter. Expected one of: ${Object.keys(STATUS_FILTER_MAP).join(", ")}.`,
+        });
+      }
+    }
+
+    const normalizedStatus =
+      typeof rawStatus === "string"
+        ? rawStatus.trim().toLowerCase()
+        : undefined;
+
+    const where = normalizedStatus
+      ? { application_status: STATUS_FILTER_MAP[normalizedStatus] }
+      : undefined;
+
+    const students = await Student.findAll({
+      ...(where ? { where } : {}),
+    });
+
+    const studentsWithGenderName = students.map((student) => {
+      const plain = student.toJSON() as Record<string, any>;
+      return {
+        ...plain,
+        gender_name: getGenderName(plain.gender_id),
+      };
+    });
+
+    return res.status(200).json({
+      status: true,
+      count: studentsWithGenderName.length,
+      students: studentsWithGenderName,
+    });
+  } catch (error: any) {
+    console.error("getAllStudents error:", error);
+    return res.status(500).json({
+      status: false,
+      message: "Failed to fetch student records",
+    });
+  }
+};
+
